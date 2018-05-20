@@ -34,6 +34,10 @@ std::vector<cl_kernel> CLWrapper::loadKernels(const std::string sourceName, cons
     cl_program program = clCreateProgramWithSource(context_, 1, &sourcePtr, &size, &ret);
 
     ret = clBuildProgram(program, 1, &deviceId_, NULL, NULL, NULL);
+	if (ret) {
+		printBuildInfo(program);
+		return {};
+	}
 
     std::vector<cl_kernel> result;
     for (const auto &name : kernelNames) {
@@ -47,12 +51,14 @@ cl_mem CLWrapper::createBuffer(size_t size)
 {
     cl_int ret;
     cl_mem memobj = clCreateBuffer(context_, CL_MEM_READ_WRITE, size, NULL, &ret);
+	_ASSERT(!ret);
     return memobj;
 }
 
 void CLWrapper::exec(cl_kernel kernel, const std::vector<size_t> &sizes)
 {
 	cl_int ret = clEnqueueNDRangeKernel(commandQueue_, kernel, (cl_uint)sizes.size(), NULL, sizes.data(), NULL, 0, NULL, NULL);
+	_ASSERT(!ret);
 }
 
 cl_int CLWrapper::devInfo(cl_device_info param)
@@ -60,6 +66,7 @@ cl_int CLWrapper::devInfo(cl_device_info param)
 	cl_int value, ret;
 	size_t size;
 	ret = clGetDeviceInfo(deviceId_, param, sizeof(value), &value, &size);
+	_ASSERT(!ret);
 	return value;
 }
 
@@ -68,12 +75,65 @@ std::string CLWrapper::devInfoStr(cl_device_info param)
 	char buf[64] = {};
 	size_t size;
 	cl_int ret = clGetDeviceInfo(deviceId_, param, sizeof(buf) - 1, buf, &size);
+	_ASSERT(!ret);
 	return buf;
 }
 
 void CLWrapper::finish()
 {
 	clFinish(commandQueue_);
+}
+
+inline void CLWrapper::printBuildInfo(cl_program program)
+{
+	char result[4096];
+	size_t size;
+	clGetProgramBuildInfo(program, deviceId_, CL_PROGRAM_BUILD_LOG, sizeof(result), result, &size);
+	printf("%s\n", result);
+}
+
+void CLWrapper::getImage2DFormats()
+{
+	cl_image_format formats[512];
+	cl_uint count;
+	clGetSupportedImageFormats(context_, CL_MEM_READ_WRITE, CL_MEM_OBJECT_IMAGE2D, 512, formats, &count);
+	for (cl_image_format *f = formats; count; --count, ++f) {
+		std::string text;
+		switch (f->image_channel_data_type) {
+		case CL_UNSIGNED_INT16: text += "UNSIGNED_INT16"; break;
+		case CL_SIGNED_INT16: text += "SIGNED_INT16"; break;
+		case CL_SNORM_INT8: text += "SNORM_INT8"; break;
+		case CL_SNORM_INT16: text += "SNORM_INT16"; break;
+		case CL_UNORM_INT8: text += "UNORM_INT8"; break;
+		case CL_UNORM_INT16: text += "UNORM_INT16"; break;
+		case CL_SIGNED_INT8: text += "SIGNED_INT8"; break;
+		case CL_UNSIGNED_INT8: text += "UNSIGNED_INT8"; break;
+		case CL_SIGNED_INT32: text += "SIGNED_INT32"; break;
+		case CL_UNSIGNED_INT32: text += "UNSIGNED_INT32"; break;
+		case CL_FLOAT: text += "FLOAT"; break;
+		case CL_HALF_FLOAT: text += "HALF_FLOAT"; break;
+		default: text += "???"; break;
+		}
+		text += " ";
+		switch (f->image_channel_order) {
+		case CL_R: text += "R"; break;
+		case CL_A: text += "A"; break;
+		case CL_RG: text += "RG"; break;
+		case CL_RGB: text += "RGB"; break;
+		case CL_ARGB: text += "ARGB"; break;
+		case CL_RGBA: text += "RGBA"; break;
+		case CL_BGRA: text += "BGRA"; break;
+		case CL_RA: text += "RA"; break;
+		case CL_DEPTH: text += "DEPTH"; break;
+		case CL_DEPTH_STENCIL: text += "DEPTH_STENCIL"; break;
+		case CL_INTENSITY: text += "INTENSITY"; break;
+		case CL_LUMINANCE: text += "LUMINANCE"; break;
+		default: text += "???"; break;
+		}
+		text += "\n";
+		printf(text.c_str());
+	}
+
 }
 
 CLAbstractMem::CLAbstractMem(CLWrapper * cl, size_t size) : cl_(cl), size_(size)
@@ -106,18 +166,14 @@ CLMemory::CLMemory(CLWrapper * cl, size_t size) : CLAbstractMem(cl, size)
 	_ASSERT(!ret);
 }
 
-CLImage2D::CLImage2D(CLWrapper * cl, int width, int height, void * data, cl_mem_flags flags) : CLAbstractMem(cl, width * height), w(width), h(height)
+CLImage2D::CLImage2D(CLWrapper * cl, int width, int height, void * data, const cl_image_format &format, cl_mem_flags flags) : CLAbstractMem(cl, width * height), w(width), h(height)
 {
-	cl_image_format format;
-	format.image_channel_data_type = CL_UNSIGNED_INT8;
-	format.image_channel_order = CL_R;
 	cl_image_desc desc = {};
 	desc.image_type = CL_MEM_OBJECT_IMAGE2D;
 	desc.image_width = width;
 	desc.image_height = height;
 	cl_int ret;
 	memobj_ = clCreateImage(context(), flags, &format, &desc, data, &ret);
-	//memobj_ = clCreateBuffer(context(), flags, size_, NULL, &ret);
 	_ASSERT(!ret);
 }
 
@@ -136,4 +192,3 @@ void CLImage2D::write(void * data)
 	cl_int ret = clEnqueueWriteImage(cl_->commandQueue_, memobj_, CL_TRUE, origin, region, 0, 0, data, 0, NULL, NULL);
 	_ASSERT(!ret);
 }
-

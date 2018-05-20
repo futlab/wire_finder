@@ -22,6 +22,8 @@ public:
 	std::string devInfoStr(cl_device_info param);
 	template<class T> cl_int devInfo(cl_device_info param, T *value) { size_t size;  return clGetDeviceInfo(deviceId_, param, sizeof(*value), value, &size); }
 	void finish();
+	void printBuildInfo(cl_program program);
+	void getImage2DFormats();
 	//cl_b
 private:
 	friend class CLAbstractMem;
@@ -53,15 +55,22 @@ public:
 
 
 
-//template<class T, int SIZE>
-//constexpr cl_image_format getImageFormat();
+template<class T = unsigned char, int SIZE = 1>
+constexpr cl_image_format imageFormat();
 
-//template<> cl_image_format getImageFormat<
+template<> constexpr cl_image_format imageFormat<unsigned char, 1>() { return {CL_R, CL_UNSIGNED_INT8 }; }
+template<> constexpr cl_image_format imageFormat<signed char, 1>() { return { CL_R, CL_SIGNED_INT8 }; }
+template<> constexpr cl_image_format imageFormat<unsigned char, 4>() { return { CL_RGBA, CL_UNSIGNED_INT8 }; }
+template<> constexpr cl_image_format imageFormat<signed char, 4>() { return { CL_RGBA, CL_SIGNED_INT8 }; }
+template<> constexpr cl_image_format imageFormat<cl_ushort, 4>() { return { CL_RGBA, CL_UNSIGNED_INT16 }; }
+template<> constexpr cl_image_format imageFormat<cl_short, 4>() { return { CL_RGBA, CL_SIGNED_INT16 }; }
+
+
 
 class CLImage2D : public CLAbstractMem
 {
 public:
-	CLImage2D(CLWrapper *cl, int width, int height, void *data = nullptr, cl_mem_flags flags = CL_MEM_READ_WRITE);
+	CLImage2D(CLWrapper *cl, int width, int height, void *data = nullptr, const cl_image_format &format = imageFormat(), cl_mem_flags flags = CL_MEM_READ_WRITE);
 	void read(void *data);
 	void write(void *data);
 private:
