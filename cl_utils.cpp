@@ -86,7 +86,7 @@ void CLWrapper::finish()
 
 inline void CLWrapper::printBuildInfo(cl_program program)
 {
-	char result[4096];
+	char result[8192];
 	size_t size;
 	clGetProgramBuildInfo(program, deviceId_, CL_PROGRAM_BUILD_LOG, sizeof(result), result, &size);
 	printf("%s\n", result);
