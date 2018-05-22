@@ -229,6 +229,7 @@ int main()
 {
     try {
         CLWrapper cl;
+        cl.showDevices();
         std::string devName = cl.devInfoStr(CL_DEVICE_NAME);
         printf("Device name: %s\n", devName.c_str());
         cl.getImage2DFormats();

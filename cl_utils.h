@@ -31,6 +31,7 @@ public:
 	void finish();
 	void printBuildInfo(cl_program program);
 	void getImage2DFormats();
+    void showDevices();
 	//cl_b
 private:
 	friend class CLAbstractMem;

@@ -27,6 +27,62 @@ CLWrapper::CLWrapper()
     commandQueue_ = clCreateCommandQueue(context_, deviceId_, 0, &ret);
 }
 
+std::string platformInfo(cl_platform_id id, cl_platform_info param)
+{
+    char buf[128];
+    size_t size;
+    if (CL_SUCCESS == clGetPlatformInfo(id, param, sizeof(buf) - 1, buf, &size))
+    {
+        buf[size] = 0;
+        return buf;
+    }
+    return "";
+}
+
+std::string deviceInfo(cl_device_id id, cl_device_info param)
+{
+    char buf[128];
+    size_t size;
+    if (CL_SUCCESS == clGetDeviceInfo(id, param, sizeof(buf) - 1, buf, &size))
+    {
+        buf[size] = 0;
+        return buf;
+    }
+    return "";
+}
+
+
+void CLWrapper::showDevices()
+{
+    int ret;
+    cl_platform_id platformIds[8];
+    cl_uint numPlatforms;
+    /* получить доступные платформы */
+    ret = clGetPlatformIDs(8, platformIds, &numPlatforms);
+    clCheck(ret, "Error in clGetPlatformIDs()");
+    for(int p = 0; p < numPlatforms; p++) {
+        cl_platform_id platformId = platformIds[p];
+        printf("Platform vendor: %s\n", platformInfo(platformId, CL_PLATFORM_VENDOR).c_str());
+        printf("Platform name: %s\n", platformInfo(platformId, CL_PLATFORM_NAME).c_str());
+        printf("Platform profile: %s\n", platformInfo(platformId, CL_PLATFORM_PROFILE).c_str());
+        printf("Platform version: %s\n", platformInfo(platformId, CL_PLATFORM_VERSION).c_str());
+
+        cl_uint numDevices;
+        cl_device_id devIds[8];
+
+        ret = clGetDeviceIDs(platformId, CL_DEVICE_TYPE_ALL, 8, devIds, &numDevices);
+        for(int d = 0; d < numDevices; d++) {
+            cl_device_id devId = devIds[d];
+            printf("Device name: %s\n", deviceInfo(devId, CL_DEVICE_NAME).c_str());
+            printf("Device profile: %s\n", deviceInfo(devId, CL_DEVICE_PROFILE).c_str());
+        }
+
+        printf("\n");
+    }
+
+}
+
+
 std::vector<cl_kernel> CLWrapper::loadKernels(const std::string sourceName, const std::vector<std::string> kernelNames)
 {
     std::ifstream stream(sourceName, std::ios_base::in);
@@ -136,7 +192,7 @@ void CLWrapper::getImage2DFormats()
 		default: text += "???"; break;
 		}
         printf("%s\n", text.c_str());
-	}
+    }
 }
 
 CLAbstractMem::CLAbstractMem(CLWrapper * cl, size_t size) : cl_(cl), size_(size)
