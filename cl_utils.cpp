@@ -3,6 +3,11 @@
 #include <fstream>
 #include <algorithm>
 
+inline void clCheck(cl_int ret, const std::string &message)
+{
+    if(ret) throw CLError(message, ret);
+}
+
 CLWrapper::CLWrapper()
 {
     int ret;
@@ -51,14 +56,14 @@ cl_mem CLWrapper::createBuffer(size_t size)
 {
     cl_int ret;
     cl_mem memobj = clCreateBuffer(context_, CL_MEM_READ_WRITE, size, NULL, &ret);
-	_ASSERT(!ret);
+    if (ret) throw CLError("Cannot createBuffer()", ret);
     return memobj;
 }
 
 void CLWrapper::exec(cl_kernel kernel, const std::vector<size_t> &sizes)
 {
 	cl_int ret = clEnqueueNDRangeKernel(commandQueue_, kernel, (cl_uint)sizes.size(), NULL, sizes.data(), NULL, 0, NULL, NULL);
-	_ASSERT(!ret);
+    if (ret) throw CLError("Cannot clEnqueueNDRangeKernel()", ret);
 }
 
 cl_int CLWrapper::devInfo(cl_device_info param)
@@ -66,7 +71,7 @@ cl_int CLWrapper::devInfo(cl_device_info param)
 	cl_int value, ret;
 	size_t size;
 	ret = clGetDeviceInfo(deviceId_, param, sizeof(value), &value, &size);
-	_ASSERT(!ret);
+    if(ret) throw CLError("Cannot clGetDeviceInfo()", ret);
 	return value;
 }
 
@@ -75,8 +80,8 @@ std::string CLWrapper::devInfoStr(cl_device_info param)
 	char buf[64] = {};
 	size_t size;
 	cl_int ret = clGetDeviceInfo(deviceId_, param, sizeof(buf) - 1, buf, &size);
-	_ASSERT(!ret);
-	return buf;
+    if(ret) throw CLError("Cannot clGetDeviceInfo()", ret);
+    return buf;
 }
 
 void CLWrapper::finish()
@@ -130,10 +135,8 @@ void CLWrapper::getImage2DFormats()
 		case CL_LUMINANCE: text += "LUMINANCE"; break;
 		default: text += "???"; break;
 		}
-		text += "\n";
-		printf(text.c_str());
+        printf("%s\n", text.c_str());
 	}
-
 }
 
 CLAbstractMem::CLAbstractMem(CLWrapper * cl, size_t size) : cl_(cl), size_(size)
@@ -144,29 +147,31 @@ void CLAbstractMem::write(const void * data)
 {
 	cl_int ret;
 	ret = clEnqueueWriteBuffer(cl_->commandQueue_, memobj_, CL_TRUE, 0, size_, data, 0, NULL, NULL);
-	_ASSERT(!ret);
+    if(ret) throw CLError("Cannot clEnqueueWriteBuffer()", ret);
 }
 
 void CLAbstractMem::read(void * data)
 {
 	cl_int ret = clEnqueueReadBuffer(cl_->commandQueue_, memobj_, CL_TRUE, 0, size_, data, 0, NULL, NULL);
-	_ASSERT(!ret);
+    if(ret) throw CLError("Cannot clEnqueueReadBuffer()", ret);
 }
 
 void CLAbstractMem::setKernelArg(cl_kernel kernel, int arg)
 {
 	cl_int ret = clSetKernelArg(kernel, arg, sizeof(cl_mem), (void *)&memobj_);
-	_ASSERT(!ret);
+    if(ret)
+        throw CLError("Cannot clSetKernelArg()", ret);
 }
 
 CLMemory::CLMemory(CLWrapper * cl, size_t size) : CLAbstractMem(cl, size)
 {
 	cl_int ret;
 	memobj_ = clCreateBuffer(context(), CL_MEM_READ_WRITE, size, NULL, &ret);
-	_ASSERT(!ret);
+    if(ret) throw CLError("Cannot clCreateBuffer()", ret);
 }
 
-CLImage2D::CLImage2D(CLWrapper * cl, int width, int height, void * data, const cl_image_format &format, cl_mem_flags flags) : CLAbstractMem(cl, width * height), w(width), h(height)
+CLImage2D::CLImage2D(CLWrapper * cl, size_t width, size_t height, void * data, const cl_image_format &format, cl_mem_flags flags) :
+    CLAbstractMem(cl, width * height), w(width), h(height)
 {
 	cl_image_desc desc = {};
 	desc.image_type = CL_MEM_OBJECT_IMAGE2D;
@@ -174,7 +179,7 @@ CLImage2D::CLImage2D(CLWrapper * cl, int width, int height, void * data, const c
 	desc.image_height = height;
 	cl_int ret;
 	memobj_ = clCreateImage(context(), flags, &format, &desc, data, &ret);
-	_ASSERT(!ret);
+    if(ret) throw CLError("Cannot clCreateImage()", ret);
 }
 
 void CLImage2D::read(void * data)
@@ -182,7 +187,7 @@ void CLImage2D::read(void * data)
 	size_t origin[3] = { 0, 0, 0 };
 	size_t region[3] = { w, h, 1 };
 	cl_int ret = clEnqueueReadImage(cl_->commandQueue_, memobj_, CL_TRUE, origin, region, 0, 0, data, 0, NULL, NULL);
-	_ASSERT(!ret);
+    if(ret) throw CLError("clEnqueueReadImage()", ret);
 }
 
 void CLImage2D::write(void * data)
@@ -190,5 +195,5 @@ void CLImage2D::write(void * data)
 	size_t origin[3] = { 0, 0, 0 };
 	size_t region[3] = { w, h, 1 };
 	cl_int ret = clEnqueueWriteImage(cl_->commandQueue_, memobj_, CL_TRUE, origin, region, 0, 0, data, 0, NULL, NULL);
-	_ASSERT(!ret);
+    if(ret) throw CLError("clEnqueueWriteImage()", ret);
 }

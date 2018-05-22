@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <stdexcept>
 
 #define CL_USE_DEPRECATED_OPENCL_1_2_APIS
 #ifdef __APPLE__
@@ -10,6 +11,12 @@
 #else
 #include <CL/cl.h>
 #endif
+
+class CLError : public std::runtime_error
+{
+public:
+    CLError(const std::string &message, cl_int ret) : std::runtime_error(message + " Code: " + std::to_string(ret)) {}
+};
 
 class CLWrapper
 {
@@ -64,17 +71,19 @@ template<> constexpr cl_image_format imageFormat<unsigned char, 4>() { return { 
 template<> constexpr cl_image_format imageFormat<signed char, 4>() { return { CL_RGBA, CL_SIGNED_INT8 }; }
 template<> constexpr cl_image_format imageFormat<cl_ushort, 4>() { return { CL_RGBA, CL_UNSIGNED_INT16 }; }
 template<> constexpr cl_image_format imageFormat<cl_short, 4>() { return { CL_RGBA, CL_SIGNED_INT16 }; }
+template<> constexpr cl_image_format imageFormat<cl_ushort, 2>() { return { CL_RG, CL_UNSIGNED_INT16 }; }
+template<> constexpr cl_image_format imageFormat<cl_short, 2>() { return { CL_RG, CL_SIGNED_INT16 }; }
 
 
 
 class CLImage2D : public CLAbstractMem
 {
 public:
-	CLImage2D(CLWrapper *cl, int width, int height, void *data = nullptr, const cl_image_format &format = imageFormat(), cl_mem_flags flags = CL_MEM_READ_WRITE);
+    CLImage2D(CLWrapper *cl, size_t width, size_t height, void *data = nullptr, const cl_image_format &format = imageFormat(), cl_mem_flags flags = CL_MEM_READ_WRITE);
 	void read(void *data);
 	void write(void *data);
 private:
-	int w, h;
+    size_t w, h;
 };
 
 #endif // CL_UTILS_H

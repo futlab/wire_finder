@@ -14,6 +14,8 @@ find_package(CUDA ${ZED_CUDA_VERSION} EXACT REQUIRED)
 include_directories(
 	${OpenCL_INCLUDE_DIRS}
 	${OpenCV_INCLUDE_DIRS}
+        ${ZED_INCLUDE_DIRS}
+        ${CUDA_INCLUDE_DIRS}
 )
 
 link_directories(${OpenCL_LIBRARY} ${OpenCV_LIBRARY})
@@ -25,7 +27,8 @@ add_executable(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
     ${OpenCL_LIBRARY}
-	${OpenCV_LIBS}
+    ${OpenCV_LIBS}
+    ${ZED_LIBRARIES}
 )
 
 configure_file(kernel.cl kernel.cl COPYONLY)

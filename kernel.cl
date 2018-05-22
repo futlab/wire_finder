@@ -23,7 +23,7 @@ __kernel void sobelRGBV(__read_only image2d_t src, __write_only image2d_t dst)
 	v +=    (convert_int4(read_imageui(src, srcSampler, (int2)(x,     y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x,     y - 1)))) << 1;
 	v +=     convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y - 1)));
 
-	write_imagei(dst, (int2)(x, y), v);
+        write_imagei(dst, (int2)(x, y), v); // [-1020 : 1020]
 }
 
 __kernel void sobelRGBH(__read_only image2d_t src, __write_only image2d_t dst)
@@ -37,28 +37,55 @@ __kernel void sobelRGBH(__read_only image2d_t src, __write_only image2d_t dst)
 	write_imagei(dst, (int2)(x, y), v);
 }
 
-/*__kernel void scharrRGBV(__read_only image2d_t src, __write_only image2d_t dst)
+__kernel void scharrRGBV(__read_only image2d_t src, __write_only image2d_t dst)
 {
 	sampler_t srcSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
 	int x = get_global_id(0), y = get_global_id(1);
-	int4 v = convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y - 1)));
-	v +=    (convert_int4(read_imageui(src, srcSampler, (int2)(x,     y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x,     y - 1)))) << 1;
-	v +=     convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y - 1)));
+        int4 v = (convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y - 1)))) * 3;
+        v +=     (convert_int4(read_imageui(src, srcSampler, (int2)(x,     y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x,     y - 1)))) * 10;
+        v +=     (convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y - 1)))) * 3;
+
+        write_imagei(dst, (int2)(x, y), v); // [-4092 : 4092]
+}
+
+__kernel void scharrRGBH(__read_only image2d_t src, __write_only image2d_t dst)
+{
+	sampler_t srcSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+	int x = get_global_id(0), y = get_global_id(1);
+        int4 v = (convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y - 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y - 1)))) * 3;
+        v +=     (convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y    ))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y    )))) * 10;
+        v +=     (convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y + 1)))) * 3;
 
 	write_imagei(dst, (int2)(x, y), v);
 }
 
-__kernel void sobelRGBH(__read_only image2d_t src, __write_only image2d_t dst)
+__kernel void scharr5(__read_only image2d_t src, __write_only image2d_t dst)
 {
-	sampler_t srcSampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
-	int x = get_global_id(0), y = get_global_id(1);
-	int4 v = convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y - 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y - 1)));
-	v +=    (convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y    ))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y    )))) << 1;
-	v +=     convert_int4(read_imageui(src, srcSampler, (int2)(x + 1, y + 1))) - convert_int4(read_imageui(src, srcSampler, (int2)(x - 1, y + 1)));
+        sampler_t sampler = CLK_NORMALIZED_COORDS_FALSE | CLK_ADDRESS_CLAMP_TO_EDGE | CLK_FILTER_NEAREST;
+        const int x = get_global_id(0), y = get_global_id(1);
+        __const int4 k[3] = {(int4)(-3, -6, 6, 3), (int4)(-2, -2, 2, 2), (int4)(-1, -1, 1, 1)};
 
-	write_imagei(dst, (int2)(x, y), v);
-}*/
+        int4 rv = (int4)(0, 0, 0, 0), rh = (int4)(0, 0, 0, 0);
+        for(int dx = -2; dx <= 2; ++dx) {
+            int lx = x + dx;
+            int4 v = convert_int4((uint4)(read_imageui(src, sampler, (int2)(lx, y - 2)).x, read_imageui(src, sampler, (int2)(lx, y - 1)).x, read_imageui(src, sampler, (int2)(lx, y + 1)).x, read_imageui(src, sampler, (int2)(lx, y + 2)).x));
+            rv = mad24(v, k[abs(dx)], rv);
+            if (dx)
+                rh = mad24(v, (int4)(1, 2, 2, 1), rh);
+            else
+                rh = -rh;
+        }
+        int4 vh = convert_int4((uint4)(read_imageui(src, sampler, (int2)(x - 2, y)).x, read_imageui(src, sampler, (int2)(x - 1, y)).x, read_imageui(src, sampler, (int2)(x + 1, y)).x, read_imageui(src, sampler, (int2)(x + 2, y)).x));
+        rh = mad24(vh, k[0], rh);
 
+        int4 r = (int4)(rh.lo + rh.hi, rv.lo + rv.hi);
+        write_imagei(dst, (int2)(x, y), (int4)(r.even + r.odd, 0, 0)); // [-5355 : 5355]
+}
+
+__kernel void gradHist(__read_only image2d_t h, __read_only image2d_t v, __write_only image2d_t hist)
+{
+
+}
 
 /*__kernel void calcAxy(__read_only image2d_t gx, __read_only image2d_t gy, __global __write_only int *a)
 {
