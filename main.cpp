@@ -209,6 +209,7 @@ void zedWork(CLFilter &f)
         }
 
         cv::imshow("Left", left);
+        cv::imshow("Right", right);
         cv::Mat outL = f.process5(left, "left");
         cv::Mat outR = f.process5(right, "right");
 
@@ -228,6 +229,8 @@ int main()
 {
     try {
         CLWrapper cl;
+        std::string devName = cl.devInfoStr(CL_DEVICE_NAME);
+        printf("Device name: %s\n", devName.c_str());
         cl.getImage2DFormats();
         //int ret = clEnqueueWriteBuffer()
         cl_bool imsup;
@@ -235,7 +238,6 @@ int main()
         cl_ulong loc_size, glob_size;
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
-        std::string devName = cl.devInfoStr(CL_DEVICE_NAME);
 
         CLFilter f(cl, cv::Size(1280, 720));
         //test(cl, k[0]);

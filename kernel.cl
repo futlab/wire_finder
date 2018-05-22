@@ -82,6 +82,12 @@ __kernel void scharr5(__read_only image2d_t src, __write_only image2d_t dst)
         write_imagei(dst, (int2)(x, y), (int4)(r.even + r.odd, 0, 0)); // [-5355 : 5355]
 }
 
+__kernel void adCensus(__read_only image2d_t left, __read_only image2d_t right)
+{
+
+
+}
+
 __kernel void gradHist(__read_only image2d_t h, __read_only image2d_t v, __write_only image2d_t hist)
 {
 
