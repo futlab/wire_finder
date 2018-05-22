@@ -51,6 +51,14 @@ std::string deviceInfo(cl_device_id id, cl_device_info param)
     return "";
 }
 
+bool deviceInfoBool(cl_device_id id, cl_device_info param)
+{
+    cl_bool result;
+    size_t size;
+    if (CL_SUCCESS == clGetDeviceInfo(id, param, sizeof(result), &result, &size))
+        return result;
+    return false;
+}
 
 void CLWrapper::showDevices()
 {
@@ -75,6 +83,7 @@ void CLWrapper::showDevices()
             cl_device_id devId = devIds[d];
             printf("Device name: %s\n", deviceInfo(devId, CL_DEVICE_NAME).c_str());
             printf("Device profile: %s\n", deviceInfo(devId, CL_DEVICE_PROFILE).c_str());
+            printf("Device image suport: %s\n", deviceInfoBool(devId, CL_DEVICE_IMAGE_SUPPORT) ? "Yes" : "No");
         }
 
         printf("\n");
