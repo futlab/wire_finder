@@ -225,6 +225,37 @@ void zedWork(CLFilter &f)
     }
 }
 
+void stereoTest(CLWrapper &cl)
+{
+    cv::Size size(320, 240);
+    cv::Mat left(size, CV_8U), right(size, CV_8U), result(size, CV_8U);
+    uchar *l = left.data, *r = right.data;
+    for (int y = 0; y < size.height; ++y)
+        for (int x = 0; x < size.width; ++x, ++r, ++l)
+        {
+            *l = 2550 / (10 + abs(x - 160) + abs(y - 120));
+            *r = 2550 / (10 + abs(x - 170) + abs(y - 120));
+        }
+    auto kernels = cl.loadKernels("kernel.cl", {"adCensus"});
+
+    cl_kernel adCensus = kernels[0];
+    CLMemory clLeft(&cl, left.data, left.total()), clRight(&cl, right.data, right.total()), clResult(&cl, result.total());
+    clLeft.setKernelArg(adCensus, 0);
+    clRight.setKernelArg(adCensus, 1);
+    cl_uint step = size.width, width = size.width, height = size.height;
+    setKernelArg(adCensus, 2, step);
+    setKernelArg(adCensus, 3, width);
+    setKernelArg(adCensus, 4, height);
+    clResult.setKernelArg(adCensus, 5);
+    cl.exec(adCensus, {size.height / 10 * 32}, {32});
+    clResult.read(result.data);
+
+
+    cv::imshow("left", left);
+    cv::imshow("right", right);
+    cv::waitKey();
+}
+
 int main()
 {
     try {
@@ -242,7 +273,10 @@ int main()
 
         CLFilter f(cl, cv::Size(1280, 720));
         //test(cl, k[0]);
-        zedWork(f);
+
+        stereoTest(cl);
+
+        //zedWork(f);
         //cv::Mat back = cv::imread("back.png");
 
 

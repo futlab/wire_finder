@@ -82,25 +82,56 @@ __kernel void scharr5(__read_only image2d_t src, __write_only image2d_t dst)
         write_imagei(dst, (int2)(x, y), (int4)(r.even + r.odd, 0, 0)); // [-5355 : 5355]
 }
 
+
 #define CENSUSW 9
 #define CENSUSH 7
-int census(char *left, char *right, int step)
+#define MAX_WIDTH 1280
+#define LOCAL_HEIGHT 16 // Height of the group work
+
+int census(uchar *left, uchar *right, int step)
 {
 	uchar16 lref = (uchar16)(*left), rref = (uchar16)(*right);
 	int d = mad24((CENSUSH >> 1), step, (CENSUSW >> 1));
 	left -= d;
 	right -= d;
 	for (int y = CENSUSH; --y >= 0;) {
-		
+                uchar16 lval = vload16(0, left), rval = vload16(0, right);
+                uchar16 val = sub_sat(lref, lval) * sub_sat(rref, rval);
 	
 	}
 
-
+    return 0;
 }
 
-__kernel void adCensus(__read_only image2d_t left, __read_only image2d_t right)
+void loadLines(__global const uchar *src, __local uchar *dst, int width, uint count)
 {
+    for ( ; count; --count) {
+        for(uint offset = get_local_id(0); offset < width / (get_local_size(0) * 16); ++offset) {
+            uchar16 v = vload16(offset, src); // left[offset * 16]
+            vstore16(v, offset, dst);
+        }
+        src += width;
+        dst += MAX_WIDTH;
+    }
+}
 
+
+
+__kernel __attribute__((reqd_work_group_size(32, 1, 1))) void adCensus(__global uchar *left, __global uchar *right, uint step, uint width, uint height, __global uchar *result)
+{
+    // 1. Load to local memory
+    __local uchar *leftBuf [LOCAL_HEIGHT * MAX_WIDTH]; // group rows * max width
+    __local uchar *rightBuf[LOCAL_HEIGHT * MAX_WIDTH]; // group rows * max width
+    uint y = get_group_id(0) * (LOCAL_HEIGHT - CENSUSH + 1); // 10
+    uint srcOffset = mul24(y, width);
+    uint dstOffset = mul24(y, (uint)MAX_WIDTH);
+    uint count = min(convert_int(height - y), (int)LOCAL_HEIGHT);
+    loadLines(left  + srcOffset, leftBuf  + dstOffset, width, count);
+    loadLines(right + srcOffset, rightBuf + dstOffset, width, count);
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // 2. Calculate costs
 
 }
 

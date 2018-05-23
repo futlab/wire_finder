@@ -24,7 +24,7 @@ public:
     CLWrapper();
     std::vector<cl_kernel> loadKernels(const std::string sourceName, const std::vector<std::string> kernelNames);
     cl_mem createBuffer(size_t size);
-	void exec(cl_kernel kernel, const std::vector<size_t> &sizes);
+    void exec(cl_kernel kernel, const std::vector<size_t> &sizes, const std::vector<size_t> &localSizes = {});
 	cl_int devInfo(cl_device_info param);
 	std::string devInfoStr(cl_device_info param);
 	template<class T> cl_int devInfo(cl_device_info param, T *value) { size_t size;  return clGetDeviceInfo(deviceId_, param, sizeof(*value), value, &size); }
@@ -59,6 +59,7 @@ class CLMemory : public CLAbstractMem
 {
 public:
 	CLMemory(CLWrapper *cl, size_t size);
+    CLMemory(CLWrapper *cl, void *data, size_t size);
 };
 
 
@@ -76,6 +77,11 @@ template<> constexpr cl_image_format imageFormat<cl_ushort, 2>() { return { CL_R
 template<> constexpr cl_image_format imageFormat<cl_short, 2>() { return { CL_RG, CL_SIGNED_INT16 }; }
 
 
+template<class T> void setKernelArg(cl_kernel kernel, cl_uint arg, T &data) {
+    cl_int ret = clSetKernelArg(kernel, arg, sizeof(T), (void *)&data);
+    if(ret)
+        throw CLError("Cannot clSetKernelArg()", ret);
+}
 
 class CLImage2D : public CLAbstractMem
 {

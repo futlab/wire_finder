@@ -125,9 +125,9 @@ cl_mem CLWrapper::createBuffer(size_t size)
     return memobj;
 }
 
-void CLWrapper::exec(cl_kernel kernel, const std::vector<size_t> &sizes)
+void CLWrapper::exec(cl_kernel kernel, const std::vector<size_t> &sizes, const std::vector<size_t> &localSizes)
 {
-	cl_int ret = clEnqueueNDRangeKernel(commandQueue_, kernel, (cl_uint)sizes.size(), NULL, sizes.data(), NULL, 0, NULL, NULL);
+    cl_int ret = clEnqueueNDRangeKernel(commandQueue_, kernel, (cl_uint)sizes.size(), NULL, sizes.data(), localSizes.empty() ? nullptr : localSizes.data(), 0, NULL, NULL);
     if (ret) throw CLError("Cannot clEnqueueNDRangeKernel()", ret);
 }
 
@@ -156,9 +156,9 @@ void CLWrapper::finish()
 
 inline void CLWrapper::printBuildInfo(cl_program program)
 {
-	char result[8192];
+    char result[81920] = {};
 	size_t size;
-	clGetProgramBuildInfo(program, deviceId_, CL_PROGRAM_BUILD_LOG, sizeof(result), result, &size);
+    clGetProgramBuildInfo(program, deviceId_, CL_PROGRAM_BUILD_LOG, sizeof(result) - 1, result, &size);
 	printf("%s\n", result);
 }
 
@@ -232,6 +232,13 @@ CLMemory::CLMemory(CLWrapper * cl, size_t size) : CLAbstractMem(cl, size)
 {
 	cl_int ret;
 	memobj_ = clCreateBuffer(context(), CL_MEM_READ_WRITE, size, NULL, &ret);
+    if(ret) throw CLError("Cannot clCreateBuffer()", ret);
+}
+
+CLMemory::CLMemory(CLWrapper *cl, void *data, size_t size) : CLAbstractMem(cl, size)
+{
+    cl_int ret;
+    memobj_ = clCreateBuffer(context(), CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, size, data, &ret);
     if(ret) throw CLError("Cannot clCreateBuffer()", ret);
 }
 
