@@ -82,6 +82,22 @@ __kernel void scharr5(__read_only image2d_t src, __write_only image2d_t dst)
         write_imagei(dst, (int2)(x, y), (int4)(r.even + r.odd, 0, 0)); // [-5355 : 5355]
 }
 
+#define CENSUSW 9
+#define CENSUSH 7
+int census(char *left, char *right, int step)
+{
+	uchar16 lref = (uchar16)(*left), rref = (uchar16)(*right);
+	int d = mad24((CENSUSH >> 1), step, (CENSUSW >> 1));
+	left -= d;
+	right -= d;
+	for (int y = CENSUSH; --y >= 0;) {
+		
+	
+	}
+
+
+}
+
 __kernel void adCensus(__read_only image2d_t left, __read_only image2d_t right)
 {
 

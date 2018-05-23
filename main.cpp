@@ -66,7 +66,7 @@ public:
 
         clImage.setKernelArg(diff5, 0);
         clGradImage.setKernelArg(diff5, 1);
-        cl_->exec(diff5, {size_.width, size_.height});
+        cl_->exec(diff5, {(size_t)size_.width, (size_t)size_.height});
         clGradImage.read(gradImage.data);
         //showGrad(gradImage, name);
 
@@ -116,13 +116,13 @@ public:
         cl_kernel k = diffH;
         clImage.setKernelArg(k, 0);
         clImageH.setKernelArg(k, 1);
-        cl_->exec(k, {size_.width, size_.height});
+        cl_->exec(k, { (size_t)size_.width, (size_t)size_.height});
         clImageH.read(resH.data);
 
         k = diffV;
         clImage.setKernelArg(k, 0);
         clImageV.setKernelArg(k, 1);
-        cl_->exec(k, {size_.width, size_.height});
+        cl_->exec(k, {(size_t)size_.width, (size_t)size_.height});
         clImageV.read(resV.data);
 
         cv::Mat hist(cv::Size(800, 600), CV_8U, cv::Scalar(128));
