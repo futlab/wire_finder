@@ -82,6 +82,64 @@ __kernel void scharr5(__read_only image2d_t src, __write_only image2d_t dst)
         write_imagei(dst, (int2)(x, y), (int4)(r.even + r.odd, 0, 0)); // [-5355 : 5355]
 }
 
+__kernel void diffint(__global const short *ghv, __global uchar * result, uint width, uint height)
+{
+    ghv += mul24(width * 2, get_global_id(0));
+    result += mad24(width, (uint)get_global_id(0), (uint)8);
+
+    short buffer[16], bufferv[16];
+    for (int x = 0; x < 16; x++, ghv += 2) {
+        buffer[x] = ghv[0];
+        bufferv[x] = ghv[1];
+    }
+    for (int x = 16; x < width; x++, ghv += 2, result++) {
+
+        int sa = 0, sb = 0, sv = 0, count = 0, d;
+        for (d = 0; d < 8; d++) {
+            int a = buffer[7 - d], b = buffer[8 + d];//, m = max(abs(a), abs(b));
+            sa += a;
+            sb += b;
+            sv += abs(bufferv[7 - d]) + abs(bufferv[8 + d]);
+            if (abs(a) > 250 && abs(b) > 250)
+                count++;
+            else if (count)
+                break;
+        }
+        int ad = abs_diff(sa, sb), m = 2 * max(abs(sa), abs(sb));
+        //if (sv > abs(sa) + abs(sb)) count = 0;
+        uchar r = 255 * ad / m;
+        *result = (count && r > 200 && sv < m) ? d * 31 : 0;
+        for (int d = 0; d < 15; d++) {
+            buffer[d] = buffer[d + 1];
+            bufferv[d] = bufferv[d + 1];
+        }
+        buffer[15] = ghv[0];
+        bufferv[15] = ghv[1];
+    }
+}
+
+__kernel __attribute__((reqd_work_group_size(32, 1, 1))) void hough(__global const uchar *src, uint width, uint height, __global ushort *dst)
+{
+    __local uchar buf[32 * 32];
+    const int l = get_local_id(0);
+    const int gx = get_group_id(0) * 32, gy = get_group_id(1) * 32 + l;
+    for(int t = 0; t < 32; t++)
+        buf[l + t * 32] = src[gy * width + gx + t];
+
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    for (int y1 = 1; y1 < 32; y1++)
+        for (int y2 = 0; y2 < y1; y2++) {
+            const int x1 = l;
+            if (buf[y1 * 32 + x1]) for (int x2 = max(0, x1 - (y1 - y2)); x2 < min(32, x1 + (y1 - y2)); x2++)
+                if (buf[y2 * 32 + x2]) {
+                    tga = (x2 - x1) / (y2 - y1);
+                    x0 = x1 - y1 * tga;
+                }
+        }
+}
+
+//__kernel void scharr5rgb(__global const uchar *src,
 
 #define CENSUSW 9
 #define CENSUSH 7
