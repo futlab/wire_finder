@@ -272,7 +272,7 @@ void stereoTest(CLWrapper &cl)
     setKernelArg(adCensus, 3, width);
     setKernelArg(adCensus, 4, height);
     clResult.setKernelArg(adCensus, 5);
-    cl.exec(adCensus, {size.height / 10 * 32}, {32});
+    cl.exec(adCensus, {(size_t)size.height / 10 * 32}, {32});
     clResult.read(result.data);
 
 
@@ -281,8 +281,11 @@ void stereoTest(CLWrapper &cl)
     cv::waitKey();
 }
 
+#include "hough.h"
+
 int main()
 {
+	houghTest();
     try {
         CLWrapper cl;
         cl.showDevices();

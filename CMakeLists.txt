@@ -22,6 +22,7 @@ link_directories(${OpenCL_LIBRARY} ${OpenCV_LIBRARY})
 
 add_executable(${PROJECT_NAME}
     main.cpp
+	hough.cpp hough.h
     cl_utils.cpp cl_utils.h
 )
 
