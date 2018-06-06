@@ -118,7 +118,7 @@ __kernel void diffint(__global const short *ghv, __global uchar * result, uint w
     }
 }
 
-__kernel __attribute__((reqd_work_group_size(32, 1, 1))) void hough(__global const uchar *src, uint width, uint height, __global ushort *dst)
+/*__kernel __attribute__((reqd_work_group_size(32, 1, 1))) void hough(__global const uchar *src, uint width, uint height, __global ushort *dst)
 {
     __local uchar buf[32 * 32];
     const int l = get_local_id(0);
@@ -137,7 +137,7 @@ __kernel __attribute__((reqd_work_group_size(32, 1, 1))) void hough(__global con
                     x0 = x1 - y1 * tga;
                 }
         }
-}
+}*/
 
 //__kernel void scharr5rgb(__global const uchar *src,
 

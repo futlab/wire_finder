@@ -22,8 +22,11 @@ link_directories(${OpenCL_LIBRARY} ${OpenCV_LIBRARY})
 
 add_executable(${PROJECT_NAME}
     main.cpp
-	hough.cpp hough.h
-    cl_utils.cpp cl_utils.h
+    hough.cpp       hough.h
+    hough_test.cpp
+    cl_utils0.cpp   cl_utils0.h
+    cl_utils.cpp    cl_utils.h
+    cl2.hpp
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -32,4 +35,14 @@ target_link_libraries(${PROJECT_NAME}
     ${ZED_LIBRARIES}
 )
 
+add_executable(info
+    info.cpp
+    cl_utils.cpp    cl_utils.h
+)
+
+target_link_libraries(info
+    ${OpenCL_LIBRARY}
+)
+
 configure_file(kernel.cl kernel.cl COPYONLY)
+configure_file(hough.cl hough.cl COPYONLY)

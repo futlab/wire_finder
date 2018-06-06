@@ -1,13 +1,29 @@
-#define WX 640 // Width of group image window
-#define WY 32  // Height of group image window
+#ifndef assert
+#define assert(exp) (void)(0)
+#endif
+
+#ifndef WX
+#define WX 320 // Width of group image window
+#endif
+
+#ifndef WY
+#define WY 40  // Height of group image window
+#endif
 
 #ifndef ACC_TYPE
 #define ACC_TYPE uchar
 #endif
 
+#ifndef ACC_H
 #define ACC_H 128 // Height of accumulator, count of different angles
+#endif
+
 #define ACC_W (WX + WY - 1) // Maximial width of the accumulator
-#define MAX_WIDTH 1280
+
+#ifndef WIDTH
+#define WIDTH 1280
+#endif
+
 #define ACC_W_FULL (1920 + 1080)
 
 #ifndef GS
@@ -31,47 +47,49 @@ inline uint getShiftStart(uint xw, uint yw)
 
 inline uint getShiftStep(uint yw)
 {
-	return uint(65536.f / (ACC_H - 1) * (2 * yw + WY - 1));
+    return (uint)(65536.f / (ACC_H - 1) * (2 * yw + WY - 1));
 }
 
 inline int getShift(uint xw, uint yw, uint a)
 {
-	int r = int(xw + yw + (float)a / (ACC_H - 1) * (2 * yw + WY - 1));
+    int r = (int)(xw + yw + (float)a / (ACC_H - 1) * (2 * yw + WY - 1));
 	assert(r == int((getShiftStart(xw, yw) + a * getShiftStep(yw)) >> 16));
 	return r;
 }
 
 // Image size must be (WX * get_num_group(0); WY * get_num_group(1)); (1280; 720) = (640 * 2; 32 * 22.5?)
-__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void houghScan(__global const uchar *src, uint step, __global ACC_TYPE *dst)
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__global const uchar *src, uint step, __global ACC_TYPE *dst)
 {
-	const uint groupSize = get_group_size(0);
+    const uint groupSize = get_local_size(0);
 
 	// Declare and initialize accumulator
-	__local ACC_TYPE acc[ACC_H * ACC_W];
-	for (__local ACC_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
-		*pAcc = 0;
+    __local ACC_TYPE acc[ACC_H * ACC_W];
+    for (__local ACC_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
+        *pAcc = 0;
 
 	// Parameters of the group image window
 	uint xw = WX * get_group_id(0), yw = WY * get_group_id(1), x = xw + get_local_id(0);
 
 	// Shift parameters
 	const uint shiftStart = getShiftStart(xw, yw), shiftStep = getShiftStep(yw);
+    //printf("shiftStart %d, shiftStep %d\n", shiftStart, shiftStep);
 
 	// Scan image window
 	__global const uchar *pSrc = src + mad24(yw, step, x);
 	for (uint y = yw; y < yw + WY; y++) {
-		uint bStep = uint(2.0f / (ACC_H - 1) * 65536.f * y);
+        uint bStep = (uint)(2.0f / (ACC_H - 1) * 65536.f * y);
 		for (int xc = 0; xc < WX; xc += groupSize) {
 			uchar value = pSrc[xc];
-			__local ACC_TYPE *pAcc = acc;
+            __local ACC_TYPE *pAcc = acc;
 			uint b = ((x + xc + y) << 16) | 0x8000;
 			uint shift = shiftStart;
 			for (uint a = 0; a < ACC_H; a++) {
 				float bf = x + xc - y * ((float)a * 2.0f / (ACC_H - 1) - 1.0f);
 				assert(round(bf) == (signed(b) >> 16));
 				uint idx = (b - shift & 0xFFFF0000) >> 16;
+                //if (value) printf("xc: %d, a: %d; idx: %d\n", xc, a, idx);
 				assert(idx < ACC_W);
-				pAcc[idx] = add_sat(pAcc[idx], value);
+                pAcc[idx] = add_sat(pAcc[idx], value);
 				b -= bStep;
 				shift -= shiftStep;
 				pAcc += ACC_W;
@@ -82,13 +100,13 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void houghScan(__gl
 	}
 
 	// Store accumulator to result
-	__global ACC_TYPE *pDst = dst + (ACC_H * ACC_W) * mad24(get_group_id(1), get_num_groups(0), get_group_id(0));
-	const __local ACC_TYPE *pAcc = acc;
-	for (int i = ACC_W * ACC_H / groupSize; i; --i) {
+    __global ACC_TYPE *pDst = dst + (ACC_H * ACC_W) * mad24((uint)get_group_id(1), (uint)get_num_groups(0), (uint)get_group_id(0)) + get_local_id(0);
+    const __local ACC_TYPE *pAcc = acc + get_local_id(0);
+    for (uint i = ACC_W * ACC_H / groupSize; i; --i) {
 		*pDst = *pAcc;
 		pDst += groupSize;
-		pAcc += groupSize;
-	}
+        pAcc += groupSize;
+    }
 }
 
 /*typedef struct __attribute__((packed)) _Line
@@ -97,10 +115,16 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void houghScan(__gl
 	short b;
 } Line;*/
 
+// Horizontal glue of one row (for one angle)
+void glue(__global const ACC_TYPE *accs, ACC_TYPE *result)
+{
+
+}
+
 // get_num_groups(0) must be equal to ACC_H
 __kernel void houghGrab(__global const ACC_TYPE *accs, uint width, uint height, /*__global Line *lines*/ __global ACC_TYPE *res)
 {
-	const uint groupSize = get_group_size(0);
+    const uint groupSize = get_local_size(0);
 
 	// Declare and initialize accumulator
 	ushort fullAcc[ACC_W_FULL / GS] = { 0 };
@@ -109,19 +133,19 @@ __kernel void houghGrab(__global const ACC_TYPE *accs, uint width, uint height, 
 	//	*paa = 0;
 
 	uint a = get_group_id(0);
-	__global const ACC_TYPE *pAcc = accs + a * ACC_W;
+    __global const ACC_TYPE *pAccs = accs + a * ACC_W;
 
 	for (uint yw = 0; yw < height; yw += WY) {
-		ACC_TYPE rowAcc[(MAX_WIDTH + 2 * (WY - 1)) / GS] = { 0 };
+        ACC_TYPE rowAcc[(WIDTH + WY) / GS] = {};
 		for (uint xw = 0; xw < width; xw += WX) {
-			uint shift = getShift(xw, yw, a);
-			for (uint x = xw + get_local_id(0); x < xw + WX; x += groupSize) {
-				ACC_TYPE value = pAcc[x];
-				uint idx = WY - 1 - shift;
-				rowAcc[idx] = add_sat(rowAcc[idx], value);
+            ACC_TYPE *pRowAcc = rowAcc + xw;
+            for (uint x = get_local_id(0); x < ACC_W; x += groupSize) {
+                ACC_TYPE value = pAccs[x];
+                //uint idx = x + WY - 1 - shift;
+                pRowAcc[x] = add_sat(pRowAcc[x], value);
 			}
-			pAcc += ACC_H * ACC_W;
+            pAccs += ACC_H * ACC_W;
 		}
-		memcpy(res, rowAcc, sizeof(rowAcc));
+        //memcpy(res, rowAcc, sizeof(rowAcc));
 	}
 }

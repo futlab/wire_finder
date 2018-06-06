@@ -5,7 +5,7 @@
 #include <opencv2/highgui.hpp>
 #include <math.h>
 
-#include "cl_utils.h"
+#include "cl_utils0.h"
 
 // ZED includes
 #include <sl_zed/Camera.hpp>
@@ -285,7 +285,6 @@ void stereoTest(CLWrapper &cl)
 
 int main()
 {
-	houghTest();
     try {
         CLWrapper cl;
         cl.showDevices();
@@ -299,17 +298,20 @@ int main()
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
 
+        houghTest(cl.context_, cl.commandQueue_, cl.deviceId_);
+
         CLFilter f(cl, cv::Size(1280, 720));
         //test(cl, k[0]);
 
         //stereoTest(cl);
+
 
         zedWork(f);
         //cv::Mat back = cv::imread("back.png");
 
 
         return 0;
-    } catch (const CLError& e) {
-        cout << "OpenCL error: " << e.what() << endl;
+    } catch (const cl::Error& e) {
+        cout << "OpenCL error: " << e.what() << " code " << e.err()<< endl;
     }
 }
