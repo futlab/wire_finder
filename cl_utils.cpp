@@ -18,6 +18,21 @@ size_t CLSet::getLocalSize()
     return result;
 }
 
+void CLSet::initializeDefault()
+{
+    std::vector<cl::Platform> platforms;
+    cl::Platform::get(&platforms);
+    cl::Platform &platform = platforms[0];
+
+    platform.getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
+
+    /* создать контекст */
+    context = cl::Context(devices);// clCreateContext(NULL, 1, &deviceId_, NULL, NULL, &ret);
+
+    /* создаем очередь команд */
+    queue = cl::CommandQueue(context, devices[0]);// clCreateCommandQueue(context_, deviceId_, 0, &ret);
+}
+
 void printCLDevices()
 {
     using namespace std;

@@ -9,7 +9,7 @@
 // OpenCL
 #include "cl_utils.h"
 
-void houghTest(cl_context context, cl_command_queue commandQueue_, cl_device_id device);
+void houghTest(CLSet *set);
 
 class HoughLinesV
 {

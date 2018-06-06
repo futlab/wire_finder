@@ -33,7 +33,7 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
         }
     }
     kAccumulate_ = cl::Kernel(program, "accumulate");
-    kGrab = cl::Kernel(program, "houghGrab");
+    kGrab = cl::Kernel(program, "glueAccs");
 
     size_t groupSize = kAccumulate_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
     localSize_ = NDRange(groupSize);
@@ -41,7 +41,7 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
 
 void HoughLinesV::initialize(const cv::Size &size, std::map<string, int> *paramsOut)
 {
-    size_t wy = 40, accH = 128;
+    size_t wy = 45, accH = 128;
     size_t localMemorySize = set_->getLocalSize();
     size_t wx = localMemorySize / accH - wy + 1;
     size_t horGroups = (size.width + wx - 1) / wx;
@@ -71,6 +71,9 @@ void HoughLinesV::initialize(const cv::Size &size, std::map<string, int> *params
     cl_uint step = size.width;
     kAccumulate_.setArg(1, step);
     kAccumulate_.setArg(2, accs_);
+
+    kGrab.setArg(0, accs_);
+    //kGrab.setArg(1);
 }
 
 HoughLinesV::HoughLinesV(CLSet *set) :
@@ -80,7 +83,9 @@ HoughLinesV::HoughLinesV(CLSet *set) :
 
 void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
 {
+    using namespace cl;
     accumulate(source);
+    set_->queue.enqueueNDRangeKernel(kGrab, NDRange(), NDRange(localSize_[0] * 128), localSize_);
 }
 
 void HoughLinesV::accumulate(const cv::Mat &source)

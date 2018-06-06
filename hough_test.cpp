@@ -40,13 +40,13 @@ uint wx_, wy_, accH_ = 128;
 
 bool testScanOneGroup(CLSet *set)
 {
-    uint w = 320, h = 40;
+    uint w = 320, h = 45;
     cv::Size size(w, h);
     cv::Mat src = cv::Mat::zeros(size, CV_8U);
     src.data[2 + w * 15] = 1;
-    //cv::line(src, cv::Point(200, 1), cv::Point(205, 37), cv::Scalar(1));
-    //cv::line(src, cv::Point(100, 21), cv::Point(90, 39), cv::Scalar(1));
-    //cv::line(src, cv::Point(300, 5), cv::Point(315, 10), cv::Scalar(1));
+    cv::line(src, cv::Point(200, 1), cv::Point(205, 37), cv::Scalar(1));
+    cv::line(src, cv::Point(100, 21), cv::Point(90, 39), cv::Scalar(1));
+    cv::line(src, cv::Point(300, 5), cv::Point(315, 10), cv::Scalar(1));
 
     HoughLinesV hlv(set);
 
@@ -98,10 +98,9 @@ bool testScanOneGroup(CLSet *set)
 }
 
 
-void houghTest(cl_context context, cl_command_queue commandQueue_, cl_device_id device)
+void houghTest(CLSet *set)
 {
-    CLSet set(context, commandQueue_, {device});
-    testScanOneGroup(&set);
+    //testScanOneGroup(set);
 
 	cv::Mat src = cv::Mat::zeros(cv::Size(1280, 720), CV_8U);
 	cv::line(src, cv::Point(200, 60), cv::Point(300, 700), cv::Scalar(1));
@@ -110,8 +109,10 @@ void houghTest(cl_context context, cl_command_queue commandQueue_, cl_device_id 
 
     cv::Mat accs;// = cv::Mat::zeros(cv::Size(ACC_W, ACC_H * numGroups[0] * numGroups[1]), CV_8U);
 
-    HoughLinesV hlv(&set);
+    HoughLinesV hlv(set);
     hlv.initialize(src.size());
+
+    //hlv
     hlv.find(src, accs);
 
     /*numGroups[1] = 3;

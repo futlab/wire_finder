@@ -17,6 +17,7 @@ struct CLSet
    CLSet() {}
    CLSet(cl_context context, cl_command_queue queue, std::vector<cl_device_id> devices);
    size_t getLocalSize();
+   void initializeDefault();
 };
 
 void printCLDevices();

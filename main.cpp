@@ -297,8 +297,8 @@ int main()
         cl_ulong loc_size, glob_size;
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
-
-        houghTest(cl.context_, cl.commandQueue_, cl.deviceId_);
+        CLSet set(cl.context_, cl.commandQueue_, {cl.deviceId_});
+        houghTest(&set);
 
         CLFilter f(cl, cv::Size(1280, 720));
         //test(cl, k[0]);

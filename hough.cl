@@ -24,6 +24,11 @@
 #define WIDTH 1280
 #endif
 
+#ifndef HEIGHT
+#define HEIGHT 720
+#endif
+
+
 #define ACC_W_FULL (1920 + 1080)
 
 #ifndef GS
@@ -115,14 +120,21 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__g
 	short b;
 } Line;*/
 
-// Horizontal glue of one row (for one angle)
-void glue(__global const ACC_TYPE *accs, ACC_TYPE *result)
-{
 
+// Horizontal glue of one row (for one angle)
+//
+void glueRow(__global const ACC_TYPE *accs, ACC_TYPE *result)
+{
+    for (uint count = WIDTH / WX; count; --count) {
+        for (uint x = 0; x < ACC_W; x += get_local_size(0))
+            result[x] = add_sat(result[x], accs[x]);
+        result += WX;
+        accs += ACC_H * ACC_W;
+    }
 }
 
 // get_num_groups(0) must be equal to ACC_H
-__kernel void houghGrab(__global const ACC_TYPE *accs, uint width, uint height, /*__global Line *lines*/ __global ACC_TYPE *res)
+__kernel void glueAccs(__global const ACC_TYPE *accs /*__global Line *lines*/ /*__global ACC_TYPE *res*/)
 {
     const uint groupSize = get_local_size(0);
 
@@ -135,17 +147,17 @@ __kernel void houghGrab(__global const ACC_TYPE *accs, uint width, uint height, 
 	uint a = get_group_id(0);
     __global const ACC_TYPE *pAccs = accs + a * ACC_W;
 
-	for (uint yw = 0; yw < height; yw += WY) {
-        ACC_TYPE rowAcc[(WIDTH + WY) / GS] = {};
-		for (uint xw = 0; xw < width; xw += WX) {
-            ACC_TYPE *pRowAcc = rowAcc + xw;
-            for (uint x = get_local_id(0); x < ACC_W; x += groupSize) {
-                ACC_TYPE value = pAccs[x];
-                //uint idx = x + WY - 1 - shift;
-                pRowAcc[x] = add_sat(pRowAcc[x], value);
-			}
-            pAccs += ACC_H * ACC_W;
-		}
-        //memcpy(res, rowAcc, sizeof(rowAcc));
-	}
+    for (uint yw = 0; yw < HEIGHT; yw += WY) { // Go vertically by windows
+        ACC_TYPE rowAcc[(WIDTH + WY) / GS + 1] = {}, *pRowAcc = rowAcc;
+        for (uint count = WIDTH / WX; count; --count) { // Go horizontally by windows
+            for (uint x = 0; x < ACC_W; ++x) // Go horizontally by angle row
+                pRowAcc[x] = add_sat(pRowAcc[x], accs[x * get_local_size(0)]); // Read global memory to thread private rowAcc
+            pRowAcc += WX; //
+            accs += ACC_H * ACC_W; // Next accumulator window
+        }
+
+        printf("pRowAcc - rowAcc: %d", (int)(pRowAcc - rowAcc));
+        //for (uint x = 0; x < ACC_W; ++x) // Go horizontally by angle row
+        //    pRowAcc[x] = add_sat(pRowAcc[x], accs[x * get_local_size(0)]); // Read global memory to thread private rowAcc
+    }
 }
