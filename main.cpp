@@ -4,6 +4,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <math.h>
+#include "hough.h"
 
 #include "cl_utils0.h"
 
@@ -31,15 +32,17 @@ private:
     CLMemory clGradMem;
     cv::Mat resH, resV, gradImage;
     cl_kernel diffH, diffV, diff5, diffint;
+	HoughLinesV hlv;
 public:
-    CLFilter(CLWrapper &cl, cv::Size size) :
+    CLFilter(CLWrapper &cl, cv::Size size, CLSet *set) :
         size_(size), cl_(&cl),
         clImage(&cl, size.width, size.height, nullptr, imageFormat<cl_uchar, 4>()/*, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY*/),
         clImageH(&cl, size.width, size.height, nullptr, imageFormat<cl_short, 4>(), CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY),
         clImageV(&cl, size.width, size.height, nullptr, imageFormat<cl_short, 4>(), CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY),
         clGradImage(&cl, size.width, size.height, nullptr, imageFormat<cl_short, 2>(), CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY),
         clGradMem(&cl, size.width * size.height * sizeof(cl_short) * 2),
-        resH(size, CV_16SC4), resV(size, CV_16SC4), gradImage(size, CV_16SC2)
+        resH(size, CV_16SC4), resV(size, CV_16SC4), gradImage(size, CV_16SC2),
+		hlv(set)
     {
         //auto kernels = cl.loadKernels("kernel.cl", {"sobelRGBH", "sobelRGBV"});
         auto kernels = cl.loadKernels("kernel.cl", {"scharrRGBH", "scharrRGBV", "scharr5", "diffint"});
@@ -92,6 +95,14 @@ public:
         cv::Mat diRes(size_, CV_8U);
         cldiResult.read(diRes.data);
         cv::imshow(name, diRes);
+		cv::Mat acc;
+		hlv.accumulateRef<ushort>(diRes, acc);
+
+		double min, max;
+		cv::minMaxLoc(acc, &min, &max);
+		acc.convertTo(acc, CV_8U, 255 / max);
+		cv::imshow(name + " acc", acc);
+
 
         // HoughLines
         /*std::vector<cv::Mat> gvec;
@@ -147,7 +158,7 @@ public:
                 //if (gh < 0 && pt > 0) pt--;
                 //hist.data at<uchar>(histX, histY) = pt;
             }
-        double min, max;
+        //double min, max;
         cv::minMaxLoc(hist, &min, &max);
         cv::Mat out;
         hist.convertTo(out, CV_8U, 128 / std::max(max, -min), 128);
@@ -298,9 +309,9 @@ int main()
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
         CLSet set(cl.context_, cl.commandQueue_, {cl.deviceId_});
-        houghTest(&set);
+        //houghTest(&set);
 
-        CLFilter f(cl, cv::Size(1280, 720));
+        CLFilter f(cl, cv::Size(1280, 720), &set);
         //test(cl, k[0]);
 
         //stereoTest(cl);

@@ -11,7 +11,7 @@
 #endif
 
 #ifndef ACC_TYPE
-#define ACC_TYPE uchar
+#define ACC_TYPE ushort
 #endif
 
 #ifndef ACC_H
@@ -28,6 +28,15 @@
 #define HEIGHT 720
 #endif
 
+#ifndef D
+#define D 2
+#endif
+
+#ifndef MAX_LINES
+#define MAX_LINES 1024
+#endif
+
+#define DF ((D) * 2 + 1)
 
 #define ACC_W_FULL (1920 + 1080)
 
@@ -94,7 +103,7 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__g
 				uint idx = (b - shift & 0xFFFF0000) >> 16;
                 //if (value) printf("xc: %d, a: %d; idx: %d\n", xc, a, idx);
 				assert(idx < ACC_W);
-                pAcc[idx] = add_sat(pAcc[idx], value);
+                pAcc[idx] = add_sat(pAcc[idx], (ACC_TYPE)value);
 				b -= bStep;
 				shift -= shiftStep;
 				pAcc += ACC_W;
@@ -112,6 +121,79 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__g
 		pDst += groupSize;
         pAcc += groupSize;
     }
+}
+
+ACC_TYPE rowMax(const ACC_TYPE *row)
+{
+	ACC_TYPE result = *(row++);
+	for (const ACC_TYPE *e = row + 2 * D; row < e; ++row)
+		result = max(result, *row);
+	return result;
+}
+
+typedef struct __attribute__((packed)) _Line
+{
+	ushort value, desc;
+	short a, b;
+} Line;
+
+#define copy(d, s, l) for (int t__ = 0; t__ < (l); ++t__) (d)[t__] = (s)[t__]
+#define delay(q, d, v) ((q)[0]); for (int t__ = 0; t__ < (d); ++t__) (q)[t__] = (q)[t__ + 1]; (q)[d] = (v)
+
+__kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint step, __global volatile int *linesCount, __global Line *lines)
+{
+	__local Line localLines[MAX_LINES];
+	__local volatile int localCounter;
+	if (get_global_id(0) == 33)
+		*linesCount = 0;
+	if (!get_local_id(0))
+		localCounter = 0;
+
+	ACC_TYPE row[DF], maxBuf[DF] = {}, valueQueue[D + 1] = {};
+	acc += get_global_id(0);
+	uint d = 0;
+	for (int y = 0; y < ACC_H; ++y) {
+		// Load row to private memory
+		copy(row, acc, DF);
+		acc += step;
+
+		// Find max and store to buf 
+		maxBuf[d++] = rowMax(row);
+		if (d >= DF) d = 0;
+
+		// Get value from past
+		ACC_TYPE value = delay(valueQueue, D, row[D]);
+
+		// Add line if value is maximal in the area
+		if (value > threshold && value >= rowMax(maxBuf)) {
+			uint idx = atomic_inc(&localCounter);
+			if (idx >= MAX_LINES) break;
+			Line l = { value, 0, y - D, get_global_id(0) };
+			localLines[idx] = l;
+			printf("Add line value %d at %d, %d\n", value, get_global_id(0), y - D);
+		}
+	}
+	barrier(CLK_LOCAL_MEM_FENCE);
+	uint count = localCounter;
+	if (!count) return;
+	uint idx;
+	__local uint lIdx;
+	if (!get_local_id(0)) {
+		idx = atomic_add(linesCount, count);
+		lIdx = idx;
+	}
+	barrier(CLK_LOCAL_MEM_FENCE);
+	if (get_local_id(0))
+		idx = lIdx;
+
+	if (idx >= MAX_LINES) return;
+	__local Line *ll = localLines + get_local_id(0);
+	if (idx + count > MAX_LINES)
+		count = MAX_LINES - idx;
+	for (__global Line *p = lines + idx + get_local_id(0), *e = lines + idx + count; p < e; p += get_local_size(0)) {
+		*p = *ll;
+		ll += get_local_size(0);
+	}
 }
 
 /*typedef struct __attribute__((packed)) _Line
@@ -139,8 +221,8 @@ __kernel void glueAccs(__global const ACC_TYPE *accs /*__global Line *lines*/ /*
     const uint groupSize = get_local_size(0);
 
 	// Declare and initialize accumulator
-	ushort fullAcc[ACC_W_FULL / GS] = { 0 };
-	uchar counters[ACC_W_FULL / GS] = { 0 }; // Count of rows, where acc > threshold
+	ushort fullAcc[ACC_W_FULL] = { 0 };
+	uchar counters[ACC_W_FULL] = { 0 }; // Count of rows, where acc > threshold
 	//for (__local ACC_TYPE *paa = angleAcc + get_local_id(0); paa < angleAcc + ACC_W_FULL; paa += groupSize)
 	//	*paa = 0;
 

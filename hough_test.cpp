@@ -1,4 +1,4 @@
-#define get_group_id(n) (groupId[n])
+/*#define get_group_id(n) (groupId[n])
 #define get_local_id(n) (localId[n])
 #define get_local_size(n) 1
 #define get_num_groups(n) (numGroups[n])
@@ -22,12 +22,12 @@ uint numGroups[] = {2, 3};
 #define WX wx_
 #define WY wy_
 #define ACC_H accH_
-uint wx_, wy_, accH_ = 128;
+uint wx_, wy_, accH_ = 128;*/
 
 #include <assert.h>
 #include <iostream>
 #include <math.h>
-#include "hough.cl"
+//#include "hough.cl"
 //#define TESTING
 #include <map>
 #include "hough.h"
@@ -38,60 +38,69 @@ uint wx_, wy_, accH_ = 128;
 
 #define SHOW_RES
 
+#ifdef SHOW_RES
+void showScaled(const cv::String &name, const cv::Mat src)
+{
+	double min, max;
+	cv::minMaxLoc(src, &min, &max);
+	cv::Mat out;
+	src.convertTo(out, CV_8U, 255 / max);
+	cv::imshow(name, out);
+}
+
+void showScaled(const cv::String &name, const cv::Mat src, const std::vector<LineV> &lines)
+{
+	double min, max;
+	cv::minMaxLoc(src, &min, &max);
+	cv::Mat out;
+	src.convertTo(out, CV_8U, 255 / max);
+	cv::cvtColor(out, out, CV_GRAY2RGB);
+	for (auto &l : lines) {
+		cv::drawMarker(out, cv::Point(l.b, l.a), cv::Scalar(255, 0, 0), cv::MARKER_CROSS);
+	}
+	cv::imshow(name, out);
+}
+
+#endif
+
 bool testScanOneGroup(CLSet *set)
 {
-    uint w = 320, h = 45;
+    uint w = 160, h = 45;
     cv::Size size(w, h);
     cv::Mat src = cv::Mat::zeros(size, CV_8U);
     src.data[2 + w * 15] = 1;
-    cv::line(src, cv::Point(200, 1), cv::Point(205, 37), cv::Scalar(1));
+    cv::line(src, cv::Point(50, 1), cv::Point(55, 37), cv::Scalar(1));
     cv::line(src, cv::Point(100, 21), cv::Point(90, 39), cv::Scalar(1));
-    cv::line(src, cv::Point(300, 5), cv::Point(315, 10), cv::Scalar(1));
+	cv::line(src, cv::Point(103, 21), cv::Point(88, 39), cv::Scalar(1));
+	cv::line(src, cv::Point(3, 5), cv::Point(15, 10), cv::Scalar(1));
 
     HoughLinesV hlv(set);
 
-    std::map<std::string, int> params;
-    hlv.initialize(size, &params);
-    WX = params.find("WX")->second;
-    WY = params.find("WY")->second;
-    ACC_H = params.find("ACC_H")->second;
-    cv::Size accSize(ACC_W, ACC_H);
-    cv::Mat accs = cv::Mat::zeros(accSize, CV_8U);
-    cv::Mat accsCL = cv::Mat::zeros(accSize, CV_8U);
+    hlv.initialize(size, CV_16U);
+	cv::Mat accs; //= cv::Mat::zeros(accSize, CV_8U);
+	cv::Mat accsCL; //= cv::Mat::zeros(accSize, CV_8U);
 
-    groupId[0] = 0;
-    groupId[1] = 0;
-    accumulate(src.data, w, (ACC_TYPE *)accs.data);
+	hlv.accumulateRef<ushort>(src, accs);
 
     hlv.accumulate(src);
     hlv.readAccumulator(accsCL);
-
-    uchar t1[20], t2[20];
-    memcpy(t1, accs.data, 20);
-    memcpy(t2, accsCL.data, 20);
 
     cv::Mat cmp;
     cv::compare(accs, accsCL, cmp, cv::CMP_NE);
     int result = cv::countNonZero(cmp);
 
+	std::vector<LineV> lines, linesCL;
+	hlv.collectLinesRef<ushort>(accs, 10, lines);
+	hlv.collectLines(accsCL);
+	hlv.readLines(linesCL);
+
     std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
 #ifdef SHOW_RES
-    double min, max;
-    cv::minMaxLoc(src, &min, &max);
-    src.convertTo(src, CV_8U, 255 / max);
-    cv::imshow("src", src);
-
-    cv::minMaxLoc(accs, &min, &max);
-    accs.convertTo(accs, CV_8U, 255 / max);
-    cv::imshow("acc", accs);
-
-    cv::minMaxLoc(accsCL, &min, &max);
-    accsCL.convertTo(accsCL, CV_8U, 255 / max);
-    cv::imshow("accCL", accsCL);
-
+    showScaled("src", src);
+    showScaled("acc", accs, lines);
+    showScaled("accCL", accsCL, linesCL);
     if (result)
         cv::imshow("result", cmp);
-
     cv::waitKey();
 #endif
     return !result;
@@ -100,7 +109,7 @@ bool testScanOneGroup(CLSet *set)
 
 void houghTest(CLSet *set)
 {
-    //testScanOneGroup(set);
+    testScanOneGroup(set);
 
 	cv::Mat src = cv::Mat::zeros(cv::Size(1280, 720), CV_8U);
 	cv::line(src, cv::Point(200, 60), cv::Point(300, 700), cv::Scalar(1));

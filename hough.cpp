@@ -4,6 +4,24 @@
 
 using namespace std;
 
+std::string cvTypeToCL(int type)
+{
+	switch (type) {
+	case CV_8U: return "uchar";
+	case CV_16U: return "ushort";
+	default: return "???";
+	}
+}
+
+inline constexpr uint cvTypeSize(int type)
+{
+	switch (type) {
+	case CV_8U: return 1;
+	case CV_16U: return 2;
+	default: return 0;
+	}
+}
+
 void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, int> > &params)
 {
     using namespace cl;
@@ -11,7 +29,7 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
     ifstream stream(fileName, ios_base::in);
     string source( (istreambuf_iterator<char>(stream) ),
                            (std::istreambuf_iterator<char>()    ) );
-    string defines = "";
+	string defines = "#define ACC_TYPE " + cvTypeToCL(accType_) + "\n";
     for (const auto &p : params)
         defines += "#define " + p.first + " " + std::to_string(p.second) + "\n";
     source = defines + source;
@@ -33,25 +51,27 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
         }
     }
     kAccumulate_ = cl::Kernel(program, "accumulate");
-    kGrab = cl::Kernel(program, "glueAccs");
+    kCollectLines_ = cl::Kernel(program, "collectLines");
 
     size_t groupSize = kAccumulate_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
     localSize_ = NDRange(groupSize);
 }
 
-void HoughLinesV::initialize(const cv::Size &size, std::map<string, int> *paramsOut)
+void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string, int> *paramsOut)
 {
-    size_t wy = 45, accH = 128;
+	accType_ = accType;
+    size_t wy = 45, accH = 128, maxLines = 1024;
     size_t localMemorySize = set_->getLocalSize();
-    size_t wx = localMemorySize / accH - wy + 1;
+    size_t wx = localMemorySize / (accH * cvTypeSize(accType)) - wy + 1;
     size_t horGroups = (size.width + wx - 1) / wx;
     size_t verGroups = size.height / wy;
     wx = size.width / horGroups;
     const vector<pair<string, int> > params = {
-        {"WX",      wx},
-        {"WY",      wy},
+        {"WX", (int)wx},
+        {"WY", (int)wy},
         {"ACC_H", accH},
-        {"WIDTH", size.width}
+        {"WIDTH", size.width},
+		{"MAX_LINES", maxLines}
     };
     loadKernels("hough.cl", params);
     if (paramsOut) {
@@ -64,7 +84,9 @@ void HoughLinesV::initialize(const cv::Size &size, std::map<string, int> *params
     source_ = cl::Buffer(set_->context, CL_MEM_READ_ONLY, size.area());
     sourceSize_ = size;
     accsSize_ = cv::Size(wx + wy - 1, accH * verGroups * horGroups);
-    accs_ = cl::Buffer(set_->context, CL_MEM_READ_WRITE, accsSize_.area());
+    accs_ = cl::Buffer(set_->context, CL_MEM_READ_WRITE, accsSize_.area() * cvTypeSize(accType_));
+	linesCount_ = cl::Buffer(set_->context, CL_MEM_WRITE_ONLY, sizeof(uint));
+	lines_ = cl::Buffer(set_->context, CL_MEM_READ_WRITE, maxLines * sizeof(LineV));
 
     // Initialize kernel parameters
     kAccumulate_.setArg(0, source_);
@@ -72,8 +94,15 @@ void HoughLinesV::initialize(const cv::Size &size, std::map<string, int> *params
     kAccumulate_.setArg(1, step);
     kAccumulate_.setArg(2, accs_);
 
-    kGrab.setArg(0, accs_);
+    //kGrab.setArg(0, accs_);
     //kGrab.setArg(1);
+
+	kCollectLines_.setArg(0, acc_);
+	uint collectThreshold = 10;
+	kCollectLines_.setArg(1, collectThreshold);
+	//kCollectLines_.setArg(2, step);
+	kCollectLines_.setArg(3, linesCount_);
+	kCollectLines_.setArg(4, lines_);
 }
 
 HoughLinesV::HoughLinesV(CLSet *set) :
@@ -85,7 +114,7 @@ void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
 {
     using namespace cl;
     accumulate(source);
-    set_->queue.enqueueNDRangeKernel(kGrab, NDRange(), NDRange(localSize_[0] * 128), localSize_);
+    //set_->queue.enqueueNDRangeKernel(kGrab, NDRange(), NDRange(localSize_[0] * 128), localSize_);
 }
 
 void HoughLinesV::accumulate(const cv::Mat &source)
@@ -98,7 +127,35 @@ void HoughLinesV::accumulate(const cv::Mat &source)
 void HoughLinesV::readAccumulator(cv::Mat &result)
 {
     if (result.empty())
-        result = cv::Mat(accsSize_, CV_8U);
-    set_->queue.enqueueReadBuffer(accs_, true, 0, accsSize_.area(), result.data);
+        result = cv::Mat(accsSize_, accType_);
+    set_->queue.enqueueReadBuffer(accs_, true, 0, accsSize_.area() * cvTypeSize(accType_), result.data);
+}
+
+void HoughLinesV::readLines(std::vector<LineV>& lines)
+{
+	uint size;
+	set_->queue.enqueueReadBuffer(linesCount_, true, 0, sizeof(uint), &size);
+	lines.resize(size);
+	if (size)
+		set_->queue.enqueueReadBuffer(lines_, true, 0, size * sizeof(LineV), lines.data());
+}
+
+void HoughLinesV::collectLines()
+{
+	//uint width;
+	//set_->queue.enqueueNDRangeKernel(kCollectLines_, cl::NDRange(), cl::NDRange(width), localSize_);
+}
+
+void HoughLinesV::collectLines(const cv::Mat & acc)
+{
+	using namespace cl;
+	acc_ = Buffer(set_->context, CL_MEM_READ_WRITE, acc.total());
+	kCollectLines_.setArg(0, acc_);
+	uint width = acc.cols;
+	kCollectLines_.setArg(2, width);
+
+	NDRange globalSize(width / localSize_[0] * localSize_[0]);
+	set_->queue.enqueueWriteBuffer(acc_, false, 0, acc.total(), acc.data);
+	set_->queue.enqueueNDRangeKernel(kCollectLines_, NDRange(), globalSize, localSize_);
 }
 
