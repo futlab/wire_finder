@@ -149,13 +149,13 @@ void HoughLinesV::collectLines()
 void HoughLinesV::collectLines(const cv::Mat & acc)
 {
 	using namespace cl;
-	acc_ = Buffer(set_->context, CL_MEM_READ_WRITE, acc.total());
+	acc_ = Buffer(set_->context, CL_MEM_READ_WRITE, acc.total() * cvTypeSize(accType_));
 	kCollectLines_.setArg(0, acc_);
 	uint width = acc.cols;
 	kCollectLines_.setArg(2, width);
 
 	NDRange globalSize(width / localSize_[0] * localSize_[0]);
-	set_->queue.enqueueWriteBuffer(acc_, false, 0, acc.total(), acc.data);
+	set_->queue.enqueueWriteBuffer(acc_, false, 0, acc.total() * cvTypeSize(accType_), acc.data);
 	set_->queue.enqueueNDRangeKernel(kCollectLines_, NDRange(), globalSize, localSize_);
 }
 

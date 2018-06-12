@@ -138,7 +138,7 @@ typedef struct __attribute__((packed)) _Line
 } Line;
 
 #define copy(d, s, l) for (int t__ = 0; t__ < (l); ++t__) (d)[t__] = (s)[t__]
-#define delay(q, d, v) ((q)[0]); for (int t__ = 0; t__ < (d); ++t__) (q)[t__] = (q)[t__ + 1]; (q)[d] = (v)
+#define delay(q, d, v) ((q)[0]); for (int t__ = 0; t__ < (d) - 1; ++t__) (q)[t__] = (q)[t__ + 1]; (q)[d - 1] = (v)
 
 __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint step, __global volatile int *linesCount, __global Line *lines)
 {
@@ -149,7 +149,7 @@ __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint st
 	if (!get_local_id(0))
 		localCounter = 0;
 
-	ACC_TYPE row[DF], maxBuf[DF] = {}, valueQueue[D + 1] = {};
+	ACC_TYPE row[DF], maxBuf[DF] = {}, valueQueue[D] = {};
 	acc += get_global_id(0);
 	uint d = 0;
 	for (int y = 0; y < ACC_H; ++y) {
@@ -164,13 +164,16 @@ __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint st
 		// Get value from past
 		ACC_TYPE value = delay(valueQueue, D, row[D]);
 
+		/*if (get_global_id(0) == 73) {
+			printf("y = %d; row = (%d, %d, %d, %d, %d); maxBuf = (%d, %d, %d, %d, %d); q = (%d, %d); value = %d\n", y, row[0], row[1], row[2], row[3], row[4], maxBuf[0], maxBuf[1], maxBuf[2], maxBuf[3], maxBuf[4], valueQueue[0], valueQueue[1], value);
+		}*/
 		// Add line if value is maximal in the area
 		if (value > threshold && value >= rowMax(maxBuf)) {
 			uint idx = atomic_inc(&localCounter);
 			if (idx >= MAX_LINES) break;
-			Line l = { value, 0, y - D, get_global_id(0) };
+			Line l = { value, 0, y - D, get_global_id(0) + D };
 			localLines[idx] = l;
-			printf("Add line value %d at %d, %d\n", value, get_global_id(0), y - D);
+			//printf("Add line value %d at %d, %d\n", value, get_global_id(0), y - D);
 		}
 	}
 	barrier(CLK_LOCAL_MEM_FENCE);

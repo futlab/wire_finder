@@ -63,6 +63,21 @@ void showScaled(const cv::String &name, const cv::Mat src, const std::vector<Lin
 
 #endif
 
+int compareLines(const std::vector<LineV> &va, const std::vector<LineV> &vb)
+{
+	int res = vb.size() - va.size();
+	for (auto &a : va) {
+		bool found = false;
+		for (auto &b : vb)
+			if (a.a == b.a && a.b == b.b && a.value == b.value) {
+				found = true;
+				break;
+			}
+		if (!found) res++;
+	}
+	return res;
+}
+
 bool testScanOneGroup(CLSet *set)
 {
     uint w = 160, h = 45;
@@ -89,12 +104,16 @@ bool testScanOneGroup(CLSet *set)
     cv::compare(accs, accsCL, cmp, cv::CMP_NE);
     int result = cv::countNonZero(cmp);
 
+	std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+
 	std::vector<LineV> lines, linesCL;
 	hlv.collectLinesRef<ushort>(accs, 10, lines);
 	hlv.collectLines(accsCL);
 	hlv.readLines(linesCL);
 
-    std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+	result = compareLines(lines, linesCL);
+	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+
 #ifdef SHOW_RES
     showScaled("src", src);
     showScaled("acc", accs, lines);
