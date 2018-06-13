@@ -39,6 +39,8 @@ private:
     cl::Buffer source_, accs_, acc_, lines_, linesCount_;
     cv::Size sourceSize_, accsSize_;
 	int accType_;
+	uint bytesAlign_;
+	uint alignSize(uint size);
 public:
     void initialize(const cv::Size &size, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
     HoughLinesV(CLSet *set);
@@ -53,7 +55,8 @@ public:
 	template<typename ACC_TYPE = unsigned char, int ACC_H = 128>
 	void accumulateRef(const cv::Mat &source, cv::Mat &acc) {
 		// Declare and initialize accumulator
-		const uint accW = source.cols + source.rows - 1;
+		const uint accW = alignSize(source.cols + source.rows - 1);
+
 		acc = cv::Mat::zeros(cv::Size(accW, ACC_H), cvType<ACC_TYPE>());
 
 		// Shift parameters

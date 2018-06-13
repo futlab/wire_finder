@@ -65,7 +65,7 @@ void showScaled(const cv::String &name, const cv::Mat src, const std::vector<Lin
 
 int compareLines(const std::vector<LineV> &va, const std::vector<LineV> &vb)
 {
-	int res = vb.size() - va.size();
+	int res = int(vb.size() - va.size());
 	for (auto &a : va) {
 		bool found = false;
 		for (auto &b : vb)

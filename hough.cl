@@ -18,7 +18,9 @@
 #define ACC_H 128 // Height of accumulator, count of different angles
 #endif
 
-#define ACC_W (WX + WY - 1) // Maximial width of the accumulator
+#ifndef ACC_W
+#define ACC_W (WX + WY - 1) // Maximial width of the accumulator for image window
+#endif
 
 #ifndef WIDTH
 #define WIDTH 1280
@@ -76,6 +78,10 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLoca
 {
     const uint groupSize = get_local_size(0);
 
+	// Initialize accumulator
+	for (__local ACC_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
+		*pAcc = 0;
+
 	// Parameters of the group image window
 	uint xw = WX * get_group_id(0), yw = WY * get_group_id(1), x = xw + get_local_id(0);
 
@@ -111,18 +117,30 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLoca
 
 __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__global const uchar *src, uint step, __global ACC_TYPE *dst)
 {
-	const uint groupSize = get_local_size(0);
-
-	// Declare and initialize accumulator
-	__local ACC_TYPE acc[ACC_H * ACC_W];
-	for (__local ACC_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
-		*pAcc = 0;
-
 	// Accumulate to local memory
+	__local ACC_TYPE acc[ACC_H * ACC_W];
 	accumulateLocal(src, step, acc);
 
 	// Store accumulator to result
+	const uint groupSize = get_local_size(0);
 	__global ACC_TYPE *pDst = dst + (ACC_H * ACC_W) * mad24((uint)get_group_id(1), (uint)get_num_groups(0), (uint)get_group_id(0)) + get_local_id(0);
+	const __local ACC_TYPE *pAcc = acc + get_local_id(0);
+	for (uint i = ACC_W * ACC_H / groupSize; i; --i) {
+		*pDst = *pAcc;
+		pDst += groupSize;
+		pAcc += groupSize;
+	}
+}
+
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRow(__global const uchar *src, uint step, __global ACC_TYPE *dst)
+{
+	// Accumulate to local memory
+	__local ACC_TYPE acc[ACC_H * ACC_W];
+	accumulateLocal(src, step, acc);
+
+	// Store accumulator to result
+	const uint groupSize = get_local_size(0);
+	__global ACC_TYPE *pDst = dst + (ACC_H * (ACC_W - WX)) * mad24((uint)get_group_id(1), (uint)get_num_groups(0), (uint)get_group_id(0)) + get_local_id(0);
 	const __local ACC_TYPE *pAcc = acc + get_local_id(0);
 	for (uint i = ACC_W * ACC_H / groupSize; i; --i) {
 		*pDst = *pAcc;

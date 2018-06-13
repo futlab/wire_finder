@@ -57,6 +57,13 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
     localSize_ = NDRange(groupSize);
 }
 
+uint HoughLinesV::alignSize(uint size)
+{
+	if (bytesAlign_)
+		return ((size - 1) | (bytesAlign_ / cvTypeSize(accType_) - 1)) + 1;
+	return size;
+}
+
 void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string, int> *paramsOut)
 {
 	accType_ = accType;
@@ -66,9 +73,11 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
     size_t horGroups = (size.width + wx - 1) / wx;
     size_t verGroups = size.height / wy;
     wx = size.width / horGroups;
+	int accW = alignSize(wx + wy - 1);
     const vector<pair<string, int> > params = {
         {"WX", (int)wx},
         {"WY", (int)wy},
+		{"ACC_W", accW},
         {"ACC_H", accH},
         {"WIDTH", size.width},
 		{"MAX_LINES", maxLines}
@@ -83,7 +92,7 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
 
     source_ = cl::Buffer(set_->context, CL_MEM_READ_ONLY, size.area());
     sourceSize_ = size;
-    accsSize_ = cv::Size(wx + wy - 1, accH * verGroups * horGroups);
+    accsSize_ = cv::Size(accW, accH * verGroups * horGroups);
     accs_ = cl::Buffer(set_->context, CL_MEM_READ_WRITE, accsSize_.area() * cvTypeSize(accType_));
 	linesCount_ = cl::Buffer(set_->context, CL_MEM_WRITE_ONLY, sizeof(uint));
 	lines_ = cl::Buffer(set_->context, CL_MEM_READ_WRITE, maxLines * sizeof(LineV));
@@ -105,9 +114,13 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
 	kCollectLines_.setArg(4, lines_);
 }
 
-HoughLinesV::HoughLinesV(CLSet *set) :
-    set_(set)
+HoughLinesV::HoughLinesV(CLSet *set) : set_(set)
 {
+	bytesAlign_ = 0;
+	for (auto &d : set->devices) {
+		uint ba = d.getInfo<CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE>();
+		if (ba > bytesAlign_) bytesAlign_ = ba;
+	}
 }
 
 void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
