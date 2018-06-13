@@ -33,7 +33,7 @@ class HoughLinesV
 {
 private:
     CLSet *set_;
-    cl::Kernel kAccumulate_, kCollectLines_;
+    cl::Kernel kAccumulate_, kAccumulateRows_, kCollectLines_;
     void loadKernels(const std::string &fileName, const std::vector<std::pair<std::string, int>> &params);
     cl::NDRange localSize_, scanGlobalSize_;
     cl::Buffer source_, accs_, acc_, lines_, linesCount_;
@@ -46,6 +46,7 @@ public:
     HoughLinesV(CLSet *set);
     void find(const cv::Mat &source, cv::Mat &result);
     void accumulate(const cv::Mat &source);
+	void accumulateRows(const cv::Mat &source, cv::Mat &rows);
 	void readAccumulator(cv::Mat &result);
 	void readLines(std::vector<LineV> &lines);
 	void collectLines();

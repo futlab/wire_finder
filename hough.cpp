@@ -51,7 +51,8 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
         }
     }
     kAccumulate_ = cl::Kernel(program, "accumulate");
-    kCollectLines_ = cl::Kernel(program, "collectLines");
+	kAccumulateRows_ = cl::Kernel(program, "accumulateRows");
+	kCollectLines_ = cl::Kernel(program, "collectLines");
 
     size_t groupSize = kAccumulate_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
     localSize_ = NDRange(groupSize);
@@ -103,6 +104,9 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
     kAccumulate_.setArg(1, step);
     kAccumulate_.setArg(2, accs_);
 
+	kAccumulateRows_.setArg(0, source_);
+	kAccumulateRows_.setArg(1, step);
+
     //kGrab.setArg(0, accs_);
     //kGrab.setArg(1);
 
@@ -135,6 +139,28 @@ void HoughLinesV::accumulate(const cv::Mat &source)
     using namespace cl;
     set_->queue.enqueueWriteBuffer(source_, true, 0, sourceSize_.area(), source.data);
     set_->queue.enqueueNDRangeKernel(kAccumulate_, NDRange(), scanGlobalSize_, localSize_);
+}
+
+void HoughLinesV::accumulateRows(const cv::Mat & source, cv::Mat & rows)
+{
+	using namespace cl;
+	set_->queue.enqueueWriteBuffer(source_, false, 0, sourceSize_.area(), source.data);
+	uint width = alignSize(source.cols + 45 - 1);
+	cv::Size bufSize(width, 128 * (source.rows / 45));
+	Buffer buf = Buffer(set_->context, CL_MEM_READ_WRITE, bufSize.area() * cvTypeSize(accType_));
+	uint flagsSize = scanGlobalSize_[0] * scanGlobalSize_[1] / localSize_[0] * sizeof(uint);
+
+	Buffer flags = Buffer(set_->context, CL_MEM_READ_WRITE, flagsSize);
+	set_->queue.enqueueFillBuffer(flags, uint(0), 0, flagsSize);
+
+	if (rows.empty())
+		rows = cv::Mat(bufSize, accType_);
+
+	kAccumulateRows_.setArg(2, buf);
+	kAccumulateRows_.setArg(3, flags);
+
+	set_->queue.enqueueNDRangeKernel(kAccumulateRows_, NDRange(), scanGlobalSize_, localSize_);
+	set_->queue.enqueueReadBuffer(buf, true, 0, bufSize.area() * cvTypeSize(accType_), rows.data);
 }
 
 void HoughLinesV::readAccumulator(cv::Mat &result)
