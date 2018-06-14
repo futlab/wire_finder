@@ -52,12 +52,13 @@ void showScaled(const cv::String &name, const cv::Mat src, const std::vector<Lin
 {
 	double min, max;
 	cv::minMaxLoc(src, &min, &max);
-	cv::Mat out;
+	cv::Mat out, markers = cv::Mat::zeros(src.size(), CV_8UC3);
 	src.convertTo(out, CV_8U, 255 / max);
 	cv::cvtColor(out, out, CV_GRAY2RGB);
 	for (auto &l : lines) {
-		cv::drawMarker(out, cv::Point(l.b, l.a), cv::Scalar(255, 0, 0), cv::MARKER_CROSS);
+		cv::drawMarker(markers, cv::Point(l.b, l.a), cv::Scalar(255, 0, 0, 50), cv::MARKER_SQUARE);
 	}
+	cv::addWeighted(out, 1, markers, 0.1, 0, out);
 	cv::imshow(name, out);
 }
 
@@ -107,7 +108,7 @@ bool testScanOneGroup(CLSet *set)
 	std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
 
 	std::vector<LineV> lines, linesCL;
-	hlv.collectLinesRef<ushort>(accs, 10, lines);
+	hlv.collectLinesRef<ushort>(accs, 20, lines);
 	hlv.collectLines(accsCL);
 	hlv.readLines(linesCL);
 
@@ -191,7 +192,7 @@ bool testScan(CLSet *set)
 
 	hlv.initialize(size, CV_16U);
 	cv::Mat acc, accs; //= cv::Mat::zeros(accSize, CV_8U);
-	cv::Mat accsCL; //= cv::Mat::zeros(accSize, CV_8U);
+	cv::Mat accCL, accsCL; //= cv::Mat::zeros(accSize, CV_8U);
 
 	hlv.accumulateRef<ushort>(src, acc);
 
@@ -202,28 +203,37 @@ bool testScan(CLSet *set)
 	}
 
 	hlv.accumulateRows(src, accsCL);
+	hlv.sumAccumulator(accCL);
 
-	cv::Mat cmp;
-	cv::compare(accs, accsCL, cmp, cv::CMP_NE);
-	int result = cv::countNonZero(cmp);
+	cv::Mat cmpRows;
+	cv::compare(accs, accsCL, cmpRows, cv::CMP_NE);
+	int resultRows = cv::countNonZero(cmpRows);
+	std::cout << "Hough test scan rows: " << (resultRows ? std::to_string(resultRows) + " errors" : "Ok") << std::endl;
 
-	std::cout << "Hough test scan one row: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+	cv::Mat cmpFull;
+	cv::compare(acc, accCL, cmpFull, cv::CMP_NE);
+	int resultFull = cv::countNonZero(cmpFull);
+	std::cout << "Hough test scan full: " << (resultFull ? std::to_string(resultFull) + " errors" : "Ok") << std::endl;
 
 	std::vector<LineV> lines, linesCL;
-	/*hlv.collectLinesRef<ushort>(accs, 10, lines);
-	hlv.collectLines(accsCL);
-	hlv.readLines(linesCL);*/
+	hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
+	
+	hlv.collectLines(accCL);
+	hlv.readLines(linesCL);
 
-	result = compareLines(lines, linesCL);
+	int result = compareLines(lines, linesCL);
 	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
 
 #ifdef SHOW_RES
 	showScaled("src", src);
 	showScaled("acc", acc, lines);
-	showScaled("accs", accs, lines);
-	showScaled("accsCL", accsCL, linesCL);
-	if (result)
-		cv::imshow("result", cmp);
+	showScaled("accCL", acc, lines);
+	showScaled("accs", accs);
+	showScaled("accsCL", accsCL);
+	if (resultFull)
+		cv::imshow("result", cmpFull);
+	if (resultRows)
+		cv::imshow("result", cmpRows);
 	cv::waitKey();
 #endif
 	return !result;
