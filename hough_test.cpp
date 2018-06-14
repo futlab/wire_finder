@@ -173,10 +173,65 @@ bool testScanOneRow(CLSet *set)
 	return !result;
 }
 
+bool testScan(CLSet *set)
+{
+	uint w = 640, h = 180;
+	cv::Size size(w, h);
+	cv::Mat src = cv::Mat::zeros(size, CV_8U);
+	src.data[2 + w * 15] = 1;
+	for (int x = 0; x < 600; x += 50 + x / 4) {
+		int y = (x & 0xF) * 10;
+		cv::line(src, cv::Point(50 + x, 1 + y), cv::Point(55 + x, 37), cv::Scalar(1));
+		cv::line(src, cv::Point(100 + x, 21), cv::Point(90 + x, 39 + y), cv::Scalar(1));
+		cv::line(src, cv::Point(103 + x, 21 + y), cv::Point(88 + x, 39), cv::Scalar(1));
+		cv::line(src, cv::Point(3 + x, 5), cv::Point(15 + x, 10 + y), cv::Scalar(1));
+	}
+
+	HoughLinesV hlv(set);
+
+	hlv.initialize(size, CV_16U);
+	cv::Mat acc, accs; //= cv::Mat::zeros(accSize, CV_8U);
+	cv::Mat accsCL; //= cv::Mat::zeros(accSize, CV_8U);
+
+	hlv.accumulateRef<ushort>(src, acc);
+
+	for (int x = 0; x < 4; x++) {
+		cv::Mat a, s = src(cv::Rect(0, x * 45, src.cols, 45));
+		hlv.accumulateRef<ushort>(s, a);
+		accs.push_back(a);
+	}
+
+	hlv.accumulateRows(src, accsCL);
+
+	cv::Mat cmp;
+	cv::compare(accs, accsCL, cmp, cv::CMP_NE);
+	int result = cv::countNonZero(cmp);
+
+	std::cout << "Hough test scan one row: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+
+	std::vector<LineV> lines, linesCL;
+	/*hlv.collectLinesRef<ushort>(accs, 10, lines);
+	hlv.collectLines(accsCL);
+	hlv.readLines(linesCL);*/
+
+	result = compareLines(lines, linesCL);
+	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+
+#ifdef SHOW_RES
+	showScaled("src", src);
+	showScaled("acc", acc, lines);
+	showScaled("accs", accs, lines);
+	showScaled("accsCL", accsCL, linesCL);
+	if (result)
+		cv::imshow("result", cmp);
+	cv::waitKey();
+#endif
+	return !result;
+}
 
 void houghTest(CLSet *set)
 {
-    testScanOneRow(set);
+    testScan(set);
 
 	cv::Mat src = cv::Mat::zeros(cv::Size(1280, 720), CV_8U);
 	cv::line(src, cv::Point(200, 60), cv::Point(300, 700), cv::Scalar(1));
