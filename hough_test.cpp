@@ -58,7 +58,28 @@ void showScaled(const cv::String &name, const cv::Mat src, const std::vector<Lin
 	for (auto &l : lines) {
 		cv::drawMarker(markers, cv::Point(l.b, l.a), cv::Scalar(255, 0, 0, 50), cv::MARKER_SQUARE);
 	}
-	cv::addWeighted(out, 1, markers, 0.1, 0, out);
+	cv::addWeighted(out, 1, markers, 0.2, 0, out);
+	cv::imshow(name, out);
+}
+
+void showScaledDrawLines(const cv::String &name, const cv::Mat src, const std::vector<LineV> &lines)
+{
+	double min, max;
+	cv::minMaxLoc(src, &min, &max);
+	cv::Mat out, markers = cv::Mat::zeros(src.size(), CV_8UC3);
+	src.convertTo(out, CV_8U, 255 / max);
+	cv::cvtColor(out, out, CV_GRAY2RGB);
+	uint m = 0;
+	for (auto &l : lines)
+		if (l.value > m)
+			m = l.value;
+
+	for (auto &l : lines) {
+		int shift = l.a * (markers.rows - 1) / 127;
+		int b = l.b - shift;
+		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+	}
+	cv::addWeighted(out, 1, markers, 0.4, 0, out);
 	cv::imshow(name, out);
 }
 
@@ -225,7 +246,7 @@ bool testScan(CLSet *set)
 	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
 
 #ifdef SHOW_RES
-	showScaled("src", src);
+	showScaledDrawLines("src", src, lines);
 	showScaled("acc", acc, lines);
 	showScaled("accCL", acc, lines);
 	showScaled("accs", accs);
