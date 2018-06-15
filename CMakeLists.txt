@@ -42,6 +42,7 @@ add_executable(info
 
 target_link_libraries(info
     ${OpenCL_LIBRARY}
+    ${OpenCV_LIBS}
 )
 
 configure_file(kernel.cl kernel.cl COPYONLY)

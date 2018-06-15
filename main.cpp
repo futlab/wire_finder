@@ -50,6 +50,7 @@ public:
         diffV = kernels[1];
         diff5 = kernels[2];
         diffint = kernels[3];
+		hlv.initialize(size);
     }
     void showGrad(const cv::Mat &gradImage, const std::string &name)
     {
@@ -207,7 +208,7 @@ cv::Mat slMat2cvMat(sl::Mat& input)
 
     // Since cv::Mat data requires a uchar* pointer, we get the uchar1 pointer from sl::Mat (getPtr<T>())
     // cv::Mat and sl::Mat will share a single memory structure
-    return cv::Mat(input.getHeight(), input.getWidth(), cv_type, input.getPtr<sl::uchar1>(MEM_CPU));
+    return cv::Mat((int)input.getHeight(), (int)input.getWidth(), cv_type, input.getPtr<sl::uchar1>(MEM_CPU));
 }
 
 void zedWork(CLFilter &f)
