@@ -11,7 +11,7 @@
 #include "cl_utils.h"
 
 
-void houghTest(CLSet *set);
+void houghTest(cl::Set *set);
 
 template<typename T> int cvType();
 template<> inline constexpr int cvType<uchar>() { return CV_8U; }
@@ -32,26 +32,28 @@ struct LineV
 class HoughLinesV
 {
 private:
-    CLSet *set_;
+    cl::Set *set_;
     cl::Kernel kAccumulate_, kAccumulateRows_, kSumAccumulator_, kCollectLines_;
     void loadKernels(const std::string &fileName, const std::vector<std::pair<std::string, int>> &params);
     cl::NDRange localSize_, scanGlobalSize_;
-    cl::Buffer source_, accs_, acc_, accRows_, flags_, lines_, linesCount_;
-    cv::Size sourceSize_, accsSize_, accRowsSize_;
+	cl::BufferT<ushort> flags_;
+	cl::BufferT<LineV> lines_;
+	cl::BufferT<uint> linesCount_;
 	int accType_;
 	uint bytesAlign_, flagsSize_;
 	uint alignSize(uint size);
 public:
-    void initialize(const cv::Size &size, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
-    HoughLinesV(CLSet *set);
+	cl::MatBuffer source_, accs_, accumulator, accRows_;
+	void initialize(const cv::Size &size, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
+    HoughLinesV(cl::Set *set);
     void find(const cv::Mat &source, cv::Mat &result);
     void accumulate(const cv::Mat &source);
 	void accumulateRows(const cv::Mat &source, cv::Mat &rows);
-	void readAccumulator(cv::Mat &result);
-	void sumAccumulator(cv::Mat &result);
+	void accumulateRows(const cv::Mat &source);
+	void sumAccumulator();
 	void readLines(std::vector<LineV> &lines);
 	void collectLines();
-	void collectLines(const cv::Mat &acc);
+	void collectLines(const cv::Mat &source);
 
 	// Reference:
 	template<typename ACC_TYPE = unsigned char, int ACC_H = 128>

@@ -2,9 +2,7 @@
 
 int main()
 {
-    CLSet set;
+    cl::Set set;
     set.initializeDefault();
     houghTest(&set);
-
-
 }

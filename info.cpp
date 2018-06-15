@@ -5,7 +5,7 @@ int main()
 {
     using namespace std;
     try {
-        printCLDevices();
+        cl::printCLDevices();
         string code = "__kernel void sum(__global const uchar *a, __global const uchar *b, __global uchar *r) { uint x = get_global_id(0); r[x] = a[x] + b[x]; } ";
 
         vector<cl::Platform> platforms;

@@ -327,14 +327,19 @@ void sumAngle(global const ACC_TYPE *accs, uint shiftF, uint shiftW, uint a, loc
 kernel void sumAccumulator(global const ACC_TYPE *accs, global ACC_TYPE *acc)
 {
 	__local ACC_TYPE temp[FULL_ACC_W];
-	uint shiftF = 0, shiftW = 0;
-	for (uint a = 0; a < ACC_H; ++a) {
+	const uint p = get_num_groups(0), i = get_group_id(0);
+	acc += FULL_ACC_W * i;
+	accs += (WIDTH + (ACC_W - WX)) * i;
+	uint shiftF = (((HEIGHT - 1) << 16) / (ACC_H - 1)) * i;
+	uint shiftW = (((WY - 1) << 16) / (ACC_H - 1)) * i;
+
+	for (uint a = i; a < ACC_H; a += p) {
 		sumAngle(accs, shiftF, shiftW, a, temp);
 		copyP(acc, temp, FULL_ACC_W);
-		acc += FULL_ACC_W;
-		accs += WIDTH + (ACC_W - WX);
-		shiftF += ((HEIGHT - 1) << 16) / (ACC_H - 1);
-		shiftW += ((WY - 1) << 16) / (ACC_H - 1);
+		acc += FULL_ACC_W * p;
+		accs += (WIDTH + (ACC_W - WX)) * p;
+		shiftF += (((HEIGHT - 1) << 16) / (ACC_H - 1)) * p;
+		shiftW += (((WY - 1) << 16) / (ACC_H - 1)) * p;
 	}
 }
 

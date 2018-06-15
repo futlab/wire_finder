@@ -34,7 +34,7 @@ private:
     cl_kernel diffH, diffV, diff5, diffint;
 	HoughLinesV hlv;
 public:
-    CLFilter(CLWrapper &cl, cv::Size size, CLSet *set) :
+    CLFilter(CLWrapper &cl, cv::Size size, cl::Set *set) :
         size_(size), cl_(&cl),
         clImage(&cl, size.width, size.height, nullptr, imageFormat<cl_uchar, 4>()/*, CL_MEM_READ_ONLY | CL_MEM_HOST_WRITE_ONLY*/),
         clImageH(&cl, size.width, size.height, nullptr, imageFormat<cl_short, 4>(), CL_MEM_WRITE_ONLY | CL_MEM_HOST_READ_ONLY),
@@ -96,7 +96,13 @@ public:
         cldiResult.read(diRes.data);
         cv::imshow(name, diRes);
 		cv::Mat acc;
-		hlv.accumulateRef<ushort>(diRes, acc);
+
+
+		hlv.accumulateRows(diRes);
+
+
+		hlv.sumAccumulator();
+		//hlv.accumulateRef<ushort>(diRes, acc);
 
 		double min, max;
 		cv::minMaxLoc(acc, &min, &max);
@@ -308,7 +314,7 @@ int main()
         cl_ulong loc_size, glob_size;
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
-        CLSet set(cl.context_, cl.commandQueue_, {cl.deviceId_});
+        cl::Set set(cl.context_, cl.commandQueue_, {cl.deviceId_});
         //houghTest(&set);
 
         CLFilter f(cl, cv::Size(1280, 720), &set);

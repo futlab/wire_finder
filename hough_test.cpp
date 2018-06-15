@@ -38,6 +38,8 @@ uint wx_, wy_, accH_ = 128;*/
 
 #define SHOW_RES
 
+using namespace cl;
+
 #ifdef SHOW_RES
 void showScaled(const cv::String &name, const cv::Mat src)
 {
@@ -79,7 +81,7 @@ void showScaledDrawLines(const cv::String &name, const cv::Mat src, const std::v
 		int b = l.b - shift;
 		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
 	}
-	cv::addWeighted(out, 1, markers, 0.4, 0, out);
+	cv::addWeighted(out, 1, markers, 0.6, 0, out);
 	cv::imshow(name, out);
 }
 
@@ -100,7 +102,7 @@ int compareLines(const std::vector<LineV> &va, const std::vector<LineV> &vb)
 	return res;
 }
 
-bool testScanOneGroup(CLSet *set)
+bool testScanOneGroup(Set *set)
 {
     uint w = 160, h = 45;
     cv::Size size(w, h);
@@ -120,7 +122,7 @@ bool testScanOneGroup(CLSet *set)
 	hlv.accumulateRef<ushort>(src, accs);
 
     hlv.accumulate(src);
-    hlv.readAccumulator(accsCL);
+    hlv.accs_.read(accsCL);
 
     cv::Mat cmp;
     cv::compare(accs, accsCL, cmp, cv::CMP_NE);
@@ -147,7 +149,7 @@ bool testScanOneGroup(CLSet *set)
     return !result;
 }
 
-bool testScanOneRow(CLSet *set)
+bool testScanOneRow(Set *set)
 {
 	uint w = 640, h = 45;
 	cv::Size size(w, h);
@@ -195,7 +197,7 @@ bool testScanOneRow(CLSet *set)
 	return !result;
 }
 
-bool testScan(CLSet *set)
+bool testScan(Set *set)
 {
 	uint w = 640, h = 180;
 	cv::Size size(w, h);
@@ -224,7 +226,8 @@ bool testScan(CLSet *set)
 	}
 
 	hlv.accumulateRows(src, accsCL);
-	hlv.sumAccumulator(accCL);
+	hlv.sumAccumulator();
+	hlv.accumulator.read(accCL);
 
 	cv::Mat cmpRows;
 	cv::compare(accs, accsCL, cmpRows, cv::CMP_NE);
@@ -260,7 +263,7 @@ bool testScan(CLSet *set)
 	return !result;
 }
 
-void houghTest(CLSet *set)
+void houghTest(Set *set)
 {
     testScan(set);
 
