@@ -21,9 +21,30 @@ namespace cl
 	   Set() {}
 	   Set(cl_context context, cl_command_queue queue, std::vector<cl_device_id> devices);
 	   size_t getLocalSize();
-	   void initializeDefault();
+	   void initializeDefault(const std::string &preferPlatform = "", const std::string &preferDevice = "");
+	   Program buildProgram(const std::string &source, const std::string & defines = "");
 	};
 
+	class Counter
+	{
+		const std::string name;
+		size_t count;
+		double time;
+	public:
+		Counter(const std::string &name) : name(name), count(0), time(0) {}
+		inline void inc(const Event &event) {
+			count++;
+			event.wait();
+			auto start = event.getProfilingInfo<CL_PROFILING_COMMAND_START>();
+			auto end   = event.getProfilingInfo<CL_PROFILING_COMMAND_END>();
+			time += (end - start) * 1E-9;
+		}
+		std::string timeStr() {
+			if (!count) return name + ": ???";
+			double t = (double)time / count * 1E3;
+			return name + ": " + std::to_string(t) + " ms ";
+		}
+	};
 
 	class MatBuffer : public Buffer
 	{
@@ -40,6 +61,9 @@ namespace cl
 		MatBuffer& operator = (const MatBuffer &buf);
 		MatBuffer(MatBuffer&& buf) noexcept : Buffer(std::move(buf)), size_(buf.size_), type_(buf.type_), set_(buf.set_) {}
 		void read(cv::Mat &result, bool blocking = true);
+		cv::Mat read();
+		cv::Mat readScaled();
+
 		void write(const cv::Mat &source, bool blocking = false);
 	};
 

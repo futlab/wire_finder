@@ -50,8 +50,12 @@ public:
         diffV = kernels[1];
         diff5 = kernels[2];
         diffint = kernels[3];
-		hlv.initialize(size);
+		hlv.initialize(size, CV_8U);
     }
+	void printCounters()
+	{
+		std::cout << "Performance: " + hlv.getCounters() + "\n";
+	}
     void showGrad(const cv::Mat &gradImage, const std::string &name)
     {
         cv::Mat buf, out;
@@ -100,16 +104,19 @@ public:
 
 
 		hlv.accumulateRows(diRes);
+		cv::imshow(name + " accRows", hlv.accRows_.readScaled());
 
+		/*hlv.sumAccumulator();
+		hlv.accumulator.read(acc);
 
-		hlv.sumAccumulator();
 		//hlv.accumulateRef<ushort>(diRes, acc);
 
 		double min, max;
 		cv::minMaxLoc(acc, &min, &max);
 		acc.convertTo(acc, CV_8U, 255 / max);
-		cv::imshow(name + " acc", acc);
+		cv::imshow(name + " acc", acc);*/
 
+		return cv::Mat();
 
         // HoughLines
         /*std::vector<cv::Mat> gvec;
@@ -165,7 +172,7 @@ public:
                 //if (gh < 0 && pt > 0) pt--;
                 //hist.data at<uchar>(histX, histY) = pt;
             }
-        //double min, max;
+        double min, max;
         cv::minMaxLoc(hist, &min, &max);
         cv::Mat out;
         hist.convertTo(out, CV_8U, 128 / std::max(max, -min), 128);
@@ -254,11 +261,13 @@ void zedWork(CLFilter &f)
         cv::Mat outL = f.process5(left, "left");
         cv::Mat outR = f.process5(right, "right");
 
-        std::vector<cv::Mat> mv = {outL, outL/*cv::Mat(outL.size(), CV_8U, cv::Scalar(128))*/, outR};
+		f.printCounters();
+
+        /*std::vector<cv::Mat> mv = {outL, outL/*cv::Mat(outL.size(), CV_8U, cv::Scalar(128))* /, outR};
         cv::Mat out;
         cv::merge(mv, out);
         cv::imshow("Stereo histogram", out);
-        cv::setMouseCallback("Stereo histogram", &onMouse, 0 );
+        cv::setMouseCallback("Stereo histogram", &onMouse, 0 );*/
 
         //cv::imshow("Right result", outR);
         switch(cv::waitKey(1)) {
@@ -315,8 +324,8 @@ int main()
         cl_ulong loc_size, glob_size;
         cl.devInfo(CL_DEVICE_LOCAL_MEM_SIZE, &loc_size);
         cl.devInfo(CL_DEVICE_GLOBAL_MEM_SIZE, &glob_size);
-        cl::Set set(cl.context_, cl.commandQueue_, {cl.deviceId_});
-        //houghTest(&set);
+		cl::Set set;// (cl.context_, cl.commandQueue_, { cl.deviceId_ });
+		set.initializeDefault("CUDA");
 
         CLFilter f(cl, cv::Size(1280, 720), &set);
         //test(cl, k[0]);
@@ -331,5 +340,6 @@ int main()
         return 0;
     } catch (const cl::Error& e) {
         cout << "OpenCL error: " << e.what() << " code " << e.err()<< endl;
+		return e.err();
     }
 }

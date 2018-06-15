@@ -34,6 +34,7 @@ class HoughLinesV
 private:
     cl::Set *set_;
     cl::Kernel kAccumulate_, kAccumulateRows_, kSumAccumulator_, kCollectLines_;
+	cl::Counter cAccumulate_, cAccumulateRows_, cSumAccumulator_, cCollectLines_;
     void loadKernels(const std::string &fileName, const std::vector<std::pair<std::string, int>> &params);
     cl::NDRange localSize_, scanGlobalSize_;
 	cl::BufferT<ushort> flags_;
@@ -43,6 +44,7 @@ private:
 	uint bytesAlign_, flagsSize_;
 	uint alignSize(uint size);
 public:
+	std::string getCounters();
 	cl::MatBuffer source_, accs_, accumulator, accRows_;
 	void initialize(const cv::Size &size, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
     HoughLinesV(cl::Set *set);

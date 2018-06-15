@@ -1,5 +1,6 @@
 #include "cl_utils.h"
 #include <iostream>
+#include <fstream>
 
 namespace cl
 {
@@ -21,11 +22,18 @@ namespace cl
 		return result;
 	}
 
-	void Set::initializeDefault()
+	void Set::initializeDefault(const std::string &preferPlatform, const std::string &preferDevice)
 	{
 		std::vector<cl::Platform> platforms;
 		cl::Platform::get(&platforms);
-		cl::Platform &platform = platforms[0];
+		cl::Platform platform = platforms[0];
+		if (preferPlatform != "") 
+			for (auto &p : platforms)
+				if (p.getInfo<CL_PLATFORM_NAME>().find(preferPlatform) != std::string::npos) {
+					platform = p;
+					break;
+				}
+		std::cout << "Using platform " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
 
 		platform.getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
 
@@ -33,7 +41,37 @@ namespace cl
 		context = cl::Context(devices);// clCreateContext(NULL, 1, &deviceId_, NULL, NULL, &ret);
 
 		/* создаем очередь команд */
-		queue = cl::CommandQueue(context, devices[0]);// clCreateCommandQueue(context_, deviceId_, 0, &ret);
+		queue = cl::CommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE);// clCreateCommandQueue(context_, deviceId_, 0, &ret);
+	}
+
+	Program Set::buildProgram(const std::string & fileName, const std::string & defines)
+	{
+		using namespace std;
+		ifstream stream(fileName, ios_base::in);
+		string source((istreambuf_iterator<char>(stream)),
+			(std::istreambuf_iterator<char>()));
+
+		cl::Program program(context, defines + source);
+		try {
+			program.build(devices);
+		}
+		catch (cl::BuildError &e) {
+			for (auto &device : devices) {
+				// Check the build status
+				cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device);
+				if (status != CL_BUILD_ERROR) continue;
+
+				// Get the build log
+				string name = device.getInfo<CL_DEVICE_NAME>();
+				string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+				std::cerr << "Build log for " << fileName << " on device " << name << ":" << std::endl
+					<< buildlog << std::endl;
+			}
+			throw;
+		}
+		std::cout << "Built " << fileName << " with defines:" << std::endl << defines;
+
+		return program;
 	}
 
 	void printCLDevices()
@@ -92,7 +130,24 @@ namespace cl
 	{
 		if (result.empty() || result.type() != type_ || result.size() != size_)
 			result = cv::Mat(size_, type_);
+		set_->queue.enqueueReadBuffer(*this, blocking, 0, size_.area() * cvTypeSize(type_), result.data);
+	}
+
+	cv::Mat MatBuffer::read()
+	{
+		cv::Mat result(size_, type_);
 		set_->queue.enqueueReadBuffer(*this, true, 0, size_.area() * cvTypeSize(type_), result.data);
+		return result;
+	}
+
+	cv::Mat MatBuffer::readScaled()
+	{
+		cv::Mat result(size_, type_);
+		read(result);
+		double min, max;
+		cv::minMaxLoc(result, &min, &max);
+		result.convertTo(result, CV_8U, 255 / max);
+		return result;
 	}
 
 	void MatBuffer::write(const cv::Mat & source, bool blocking)

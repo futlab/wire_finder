@@ -1,6 +1,4 @@
 #include "hough.h"
-#include <fstream>
-#include <iostream>
 
 using namespace std;
 
@@ -22,38 +20,31 @@ inline constexpr uint cvTypeSize(int type)
 	}
 }
 
+HoughLinesV::HoughLinesV(cl::Set *set) : set_(set),
+	cAccumulate_("accumulate"), cAccumulateRows_("accumulateRows"), cSumAccumulator_("sumAccumulator"), cCollectLines_("collectLines")
+{
+	bytesAlign_ = 0;
+	for (auto &d : set->devices) {
+		uint ba = d.getInfo<CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE>();
+		if (ba > bytesAlign_) bytesAlign_ = ba;
+	}
+	// if (bytesAlign_ > 64) bytesAlign_ = 64;
+}
+
+
 void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, int> > &params)
 {
     using namespace cl;
 
-    ifstream stream(fileName, ios_base::in);
-    string source( (istreambuf_iterator<char>(stream) ),
-                           (std::istreambuf_iterator<char>()    ) );
 	string defines = "#define ACC_TYPE " + cvTypeToCL(accType_) + "\n";
     for (const auto &p : params)
         defines += "#define " + p.first + " " + std::to_string(p.second) + "\n";
-    source = defines + source;
-
-    cl::Program program(set_->context, source);
-    try {
-        program.build(set_->devices);
-    } catch(cl::BuildError &e) {
-        for (auto &device : set_->devices) {
-            // Check the build status
-            cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device);
-            if (status != CL_BUILD_ERROR) continue;
-
-            // Get the build log
-            string name     = device.getInfo<CL_DEVICE_NAME>();
-            string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-            cerr << "Build log for " << fileName << " on device " << name << ":" << endl
-                    << buildlog << endl;
-        }
-    }
-    kAccumulate_ = cl::Kernel(program, "accumulate");
-	kAccumulateRows_ = cl::Kernel(program, "accumulateRows");
-	kCollectLines_ = cl::Kernel(program, "collectLines");
-	kSumAccumulator_ = cl::Kernel(program, "sumAccumulator");
+	Program program = set_->buildProgram(fileName, defines);
+ 
+	kAccumulate_ = Kernel(program, "accumulate");
+	kAccumulateRows_ = Kernel(program, "accumulateRows");
+	kCollectLines_ = Kernel(program, "collectLines");
+	kSumAccumulator_ = Kernel(program, "sumAccumulator");
 
     size_t groupSize = kAccumulate_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
     localSize_ = NDRange(groupSize);
@@ -66,17 +57,25 @@ uint HoughLinesV::alignSize(uint size)
 	return size;
 }
 
+std::string HoughLinesV::getCounters()
+{
+	return cAccumulate_.timeStr() + cAccumulateRows_.timeStr() + cSumAccumulator_.timeStr() + cCollectLines_.timeStr();
+}
+
 void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string, int> *paramsOut)
 {
 	accType_ = accType;
-    uint wy = 45, accH = 128, maxLines = 1024;
+    uint wx = 160, wy = 45, accH = 128, maxLines = 1024;
     uint localMemorySize = (uint)set_->getLocalSize();
-    uint wx = localMemorySize / (accH * cvTypeSize(accType)) - wy + 1;
-    uint horGroups = (size.width + wx - 1) / wx;
+    //uint wx = localMemorySize / (accH * cvTypeSize(accType)) - wy + 1;
+	uint horGroups = size.width / wx;// (size.width + wx - 1) / wx;
     uint verGroups = size.height / wy;
-    wx = size.width / horGroups;
+    //wx = size.width / horGroups;
+
 	int accW = (int)alignSize(wx + wy - 1);
-    const vector<pair<string, int> > params = {
+	assert(accW * accH * cvTypeSize(accType_) < localMemorySize);
+
+	const vector<pair<string, int> > params = {
         {"WX", (int)wx},
         {"WY", (int)wy},
 		{"ACC_W", accW},
@@ -133,15 +132,6 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
 	kCollectLines_.setArg(4, lines_);
 }
 
-HoughLinesV::HoughLinesV(cl::Set *set) : set_(set)
-{
-	bytesAlign_ = 0;
-	for (auto &d : set->devices) {
-		uint ba = d.getInfo<CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE>();
-		if (ba > bytesAlign_) bytesAlign_ = ba;
-	}
-}
-
 void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
 {
     using namespace cl;
@@ -152,14 +142,18 @@ void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
 void HoughLinesV::accumulate(const cv::Mat &source)
 {
 	source_.write(source);
-    set_->queue.enqueueNDRangeKernel(kAccumulate_, cl::NDRange(), scanGlobalSize_, localSize_);
+	cl::Event e;
+    set_->queue.enqueueNDRangeKernel(kAccumulate_, cl::NDRange(), scanGlobalSize_, localSize_, nullptr, &e);
+	cAccumulate_.inc(e);
 }
 
 void HoughLinesV::accumulateRows(const cv::Mat & source)
 {
 	source_.write(source);
 	flags_.fill();
-	set_->queue.enqueueNDRangeKernel(kAccumulateRows_, cl::NDRange(), scanGlobalSize_, localSize_);
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kAccumulateRows_, cl::NDRange(), scanGlobalSize_, localSize_, nullptr, &e);
+	cAccumulateRows_.inc(e);
 }
 
 void HoughLinesV::accumulateRows(const cv::Mat & source, cv::Mat & rows)
@@ -170,7 +164,9 @@ void HoughLinesV::accumulateRows(const cv::Mat & source, cv::Mat & rows)
 
 void HoughLinesV::sumAccumulator()
 {
-	set_->queue.enqueueNDRangeKernel(kSumAccumulator_, cl::NDRange(), cl::NDRange(localSize_[0] * 16), localSize_);
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kSumAccumulator_, cl::NDRange(), cl::NDRange(localSize_[0] * 16), localSize_, nullptr, &e);
+	cSumAccumulator_.inc(e);
 }
 
 void HoughLinesV::readLines(std::vector<LineV>& lines)
@@ -186,7 +182,9 @@ void HoughLinesV::collectLines()
 {
 	using namespace cl;
 	NDRange globalSize(accumulator.size().width / localSize_[0] * localSize_[0]);
-	set_->queue.enqueueNDRangeKernel(kCollectLines_, NDRange(), globalSize, localSize_);
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kCollectLines_, NDRange(), globalSize, localSize_, nullptr, &e);
+	cCollectLines_.inc(e);
 }
 
 void HoughLinesV::collectLines(const cv::Mat & source)
