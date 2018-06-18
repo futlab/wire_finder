@@ -40,13 +40,13 @@ private:
 	cl::BufferT<ushort> flags_;
 	cl::BufferT<LineV> lines_;
 	cl::BufferT<uint> linesCount_;
-	int accType_;
+	int accType_, rowType_;
 	uint bytesAlign_, flagsSize_;
 	uint alignSize(uint size);
 public:
 	std::string getCounters();
 	cl::MatBuffer source_, accs_, accumulator, accRows_;
-	void initialize(const cv::Size &size, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
+	void initialize(const cv::Size &size, int rowType = CV_8U, int accType = CV_16U, std::map<std::string, int> *paramsOut = nullptr);
     HoughLinesV(cl::Set *set);
     void find(const cv::Mat &source, cv::Mat &result);
     void accumulate(const cv::Mat &source);

@@ -633,7 +633,7 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="2.8"
-     inkscape:cx="557.25558"
+     inkscape:cx="550.28144"
      inkscape:cy="583.58706"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
@@ -2189,24 +2189,24 @@
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:3.26028275px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.08150706"
-       x="80.012505"
-       y="141.74419"
+       x="79.823517"
+       y="147.13034"
        id="text14811-4-8-6-9"><tspan
          sodipodi:role="line"
          id="tspan14809-3-1-2-92"
-         x="80.012505"
-         y="141.74419"
+         x="79.823517"
+         y="147.13034"
          style="fill:#000000;fill-opacity:1;stroke-width:0.08150706">shiftfirst = min b(a = -1+1/ACC_H) = xw + yw * (1 - 1 / ACC_H)</tspan></text>
     <text
        xml:space="preserve"
        style="font-style:normal;font-weight:normal;font-size:3.26028275px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.08150706"
-       x="80.683456"
-       y="146.02882"
+       x="80.494469"
+       y="150.56454"
        id="text14811-4-8-6-7"><tspan
          sodipodi:role="line"
          id="tspan14809-3-1-2-5"
-         x="80.683456"
-         y="146.02882"
+         x="80.494469"
+         y="150.56454"
          style="fill:#000000;fill-opacity:1;stroke-width:0.08150706">shiftlast = min b(a =  1 -1/ACC_H) = xw  - (yw + WIN_H-1) * (1 - 1/ACC_H)</tspan></text>
     <text
        xml:space="preserve"
@@ -2275,5 +2275,16 @@
        id="path15680-47-3"
        inkscape:connector-curvature="0"
        sodipodi:nodetypes="cc" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:3.26028275px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.08150706"
+       x="100.43195"
+       y="160.10452"
+       id="text14811-4-8-6-7-4-1"><tspan
+         sodipodi:role="line"
+         id="tspan14809-3-1-2-5-0-0"
+         x="100.43195"
+         y="160.10452"
+         style="fill:#000000;fill-opacity:1;stroke-width:0.08150706">shiftStep(yw+=WIN_H) = WIN_H*(1 - (1 + 2a) / ACC_H)</tspan></text>
   </g>
 </svg>

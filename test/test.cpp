@@ -3,6 +3,6 @@
 int main()
 {
     cl::Set set;
-    set.initializeDefault();
+    set.initializeDefault("CUDA");
     houghTest(&set);
 }

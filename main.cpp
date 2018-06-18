@@ -50,7 +50,7 @@ public:
         diffV = kernels[1];
         diff5 = kernels[2];
         diffint = kernels[3];
-		hlv.initialize(size, CV_8U);
+		hlv.initialize(size, CV_8U, CV_16U);
     }
 	void printCounters()
 	{
@@ -102,12 +102,14 @@ public:
         cv::imshow(name, diRes);
 		cv::Mat acc;
 
+		cv::threshold(diRes, diRes, 2, 2, cv::THRESH_TRUNC);
 
 		hlv.accumulateRows(diRes);
-		cv::imshow(name + " accRows", hlv.accRows_.readScaled());
+		//cv::imshow(name + " accRows", hlv.accRows_.readScaled());
 
-		/*hlv.sumAccumulator();
-		hlv.accumulator.read(acc);
+		hlv.sumAccumulator();
+		cv::imshow(name + " accRows", hlv.accumulator.readScaled());
+		/*hlv.accumulator.read(acc);
 
 		//hlv.accumulateRef<ushort>(diRes, acc);
 

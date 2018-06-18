@@ -10,6 +10,10 @@
 #define WY 40  // Height of group image window
 #endif
 
+#ifndef ROW_TYPE
+#define ROW_TYPE uchar
+#endif
+
 #ifndef ACC_TYPE
 #define ACC_TYPE ushort
 #endif
@@ -81,12 +85,12 @@ inline int getShift(uint xw, uint yw, uint a)
 }
 
 // Image size must be (WX * get_num_group(0); WY * get_num_group(1)); (1280; 720) = (160 * 8; 45 * 16)
-__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLocal(__global const uchar *src, uint step, __local ACC_TYPE *acc)
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLocal(__global const uchar *src, uint step, __local ROW_TYPE *acc)
 {
     const uint groupSize = get_local_size(0);
 
 	// Initialize accumulator
-	for (__local ACC_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
+	for (__local ROW_TYPE *pAcc = acc + get_local_id(0); pAcc < acc + ACC_H * ACC_W; pAcc += groupSize)
 		*pAcc = 0;
 
 	// Parameters of the group image window
@@ -104,11 +108,11 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLoca
 		uint bStart = (((x + y) << 16) | 0x8000) - y * (65536 / ACC_H);
 		for (int xc = 0; xc < WX; xc += groupSize) {
 			uchar value = pSrc[xc];
-            __local ACC_TYPE *pAcc = acc;
+            __local ROW_TYPE *pAcc = acc;
 			uint shift = shiftStart, b = bStart;
 			for (uint a = 0; a < ACC_H; a++) {
 				uint idx = (b - (shift & 0xFFFF0000)) >> 16;
-                pAcc[idx] = add_sat(pAcc[idx], (ACC_TYPE)value);
+                pAcc[idx] = add_sat(pAcc[idx], (ROW_TYPE)value);
 				b -= bStep;
 				shift -= shiftStep;
 				pAcc += ACC_W;
@@ -125,7 +129,7 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLoca
 #define delay(q, d, v) ((q)[0]); for (int t__ = 0; t__ < (d) - 1; ++t__) (q)[t__] = (q)[t__ + 1]; (q)[d - 1] = (v)
 
 
-inline void copyRect(__global ACC_TYPE *dst, __local ACC_TYPE *src, uint dstStep, uint srcStep, uint width, uint height)
+inline void copyRect(__global ROW_TYPE *dst, __local ROW_TYPE *src, uint dstStep, uint srcStep, uint width, uint height)
 {
 	uint gs = get_local_size(0), i = get_local_id(0);
 	dst += i;
@@ -141,7 +145,7 @@ inline void copyRect(__global ACC_TYPE *dst, __local ACC_TYPE *src, uint dstStep
 	}
 }
 
-inline void addRect(__local ACC_TYPE *dst, __global ACC_TYPE *src, uint dstStep, uint srcStep, uint width, uint height)
+inline void addRect(__local ROW_TYPE *dst, __global ROW_TYPE *src, uint dstStep, uint srcStep, uint width, uint height)
 {
 	uint gs = get_local_size(0), i = get_local_id(0);
 	dst += i;
@@ -163,8 +167,15 @@ inline void zeroP(__local ACC_TYPE *dst, uint size)
 		*d = 0;
 }
 
+inline void setP(__local ACC_TYPE *dst, uint size, ACC_TYPE value)
+{
+	for (__local ACC_TYPE *d = dst + get_local_id(0), *e = dst + size; d < e; d += get_local_size(0))
+		*d = value;
+}
+
 inline void copyP(global ACC_TYPE *dst, local ACC_TYPE *src, uint size)
 {
+	src += get_local_id(0);
 	for (global ACC_TYPE *d = dst + get_local_id(0), *e = dst + size; d < e; d += get_local_size(0)) {
 		*d = *src;
 		src += get_local_size(0);
@@ -172,16 +183,16 @@ inline void copyP(global ACC_TYPE *dst, local ACC_TYPE *src, uint size)
 }
 
 
-__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__global const uchar *src, uint step, __global ACC_TYPE *dst)
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__global const uchar *src, uint step, __global ROW_TYPE *dst)
 {
 	// Accumulate to local memory
-	__local ACC_TYPE acc[ACC_H * ACC_W];
+	__local ROW_TYPE acc[ACC_H * ACC_W];
 	accumulateLocal(src, step, acc);
 
 	// Store accumulator to result
 	const uint groupSize = get_local_size(0);
-	__global ACC_TYPE *pDst = dst + (ACC_H * ACC_W) * mad24((uint)get_group_id(1), (uint)get_num_groups(0), (uint)get_group_id(0)) + get_local_id(0);
-	const __local ACC_TYPE *pAcc = acc + get_local_id(0);
+	__global ROW_TYPE *pDst = dst + (ACC_H * ACC_W) * mad24((uint)get_group_id(1), (uint)get_num_groups(0), (uint)get_group_id(0)) + get_local_id(0);
+	const __local ROW_TYPE *pAcc = acc + get_local_id(0);
 	for (uint i = ACC_W * ACC_H / groupSize; i; --i) {
 		*pDst = *pAcc;
 		pDst += groupSize;
@@ -204,7 +215,7 @@ uint ready(__global volatile uint *flag) {
 	return result;
 }
 
-void glueLocalAccRows(__local ACC_TYPE *acc, __global ACC_TYPE *dst, __global volatile uint *flags)
+void glueLocalAccRows(__local ROW_TYPE *acc, __global ROW_TYPE *dst, __global volatile uint *flags)
 {
 	uint flag_id = mad24((uint)get_group_id(1), (uint)get_num_groups(0) - 1, (uint)get_group_id(0));
 	uint rowWidth = mad24((uint)get_num_groups(0), (uint)WX, (uint)(ACC_W - WX));
@@ -269,48 +280,58 @@ void glueLocalAccRows(__local ACC_TYPE *acc, __global ACC_TYPE *dst, __global vo
 	// if (!get_local_id(0)) printf("Group %d (%d) exit - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
 }
 
-__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ACC_TYPE *dst, __global volatile uint *flags)
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ROW_TYPE *dst, __global volatile uint *flags)
 {
 	// Accumulate to local memory
-	__local ACC_TYPE acc[ACC_H * ACC_W];
+	__local ROW_TYPE acc[ACC_H * ACC_W];
 	accumulateLocal(src, step, acc);
 
 	// Make full rows of accumulator
 	glueLocalAccRows(acc, dst, flags);
 }
 
-void sumAngle(global const ACC_TYPE *accs, uint shiftF, uint shiftW, uint a, local ACC_TYPE *dst)
+void sumAngle(global const ROW_TYPE *accs, uint shiftF, uint shiftW, uint a, local ACC_TYPE *dst)
 {
 	zeroP(dst, FULL_ACC_W);
-	for (uint y = HEIGHT / WY; y; --y) {
+	const uint shiftWStep = (WY << 16) - WY * (1 + 2 * a) * (65536 / ACC_H);
+	for (uint y = HEIGHT / WY; y; --y) 
+	{
 		barrier(CLK_LOCAL_MEM_FENCE);
-		uint shift = shift;
-		local ACC_TYPE *d = dst + ((shiftW - shiftF & 0xFFFF0000) >> 16);
-		for (global const ACC_TYPE *a = accs + get_local_id(0); a < accs + WIDTH + (ACC_W - WX); a += get_local_size(0)) {
-			*d = *a;
+		local ACC_TYPE *d = dst + get_local_id(0) - (((int)shiftF) >> 16) + (((int)shiftW) >> 16);
+		for (global const ROW_TYPE *ap = accs + get_local_id(0); ap < accs + WIDTH + (ACC_W - WX); ap += get_local_size(0)) {
+			if ((uint)(d - dst) >= FULL_ACC_W)
+				break;
+			*d = add_sat(*d, (ACC_TYPE)*ap);
+			//else printf("a: %d; d - dst = %d; shiftF: %d; shiftW: %d\n", a, (uint)(d - dst), shiftF, shiftW);
 			d += get_local_size(0);
 		}
 		accs += (WIDTH + (ACC_W - WX)) * ACC_H;
-		shiftW += (WY << 16) + ((a * (2 * WY)) << 16) / (ACC_H - 1);
+		shiftW += shiftWStep;
 	}
 }
 
-kernel void sumAccumulator(global const ACC_TYPE *accs, global ACC_TYPE *acc)
+kernel void sumAccumulator(global const ROW_TYPE *accs, global ACC_TYPE *acc)
 {
 	__local ACC_TYPE temp[FULL_ACC_W];
-	const uint p = get_num_groups(0), i = get_group_id(0);
+	const uint s = ACC_H / get_num_groups(0);
+	const uint i = s * get_group_id(0);
 	acc += FULL_ACC_W * i;
 	accs += (WIDTH + (ACC_W - WX)) * i;
-	uint shiftF = (((HEIGHT - 1) << 16) / (ACC_H - 1)) * i;
-	uint shiftW = (((WY - 1) << 16) / (ACC_H - 1)) * i;
-
-	for (uint a = i; a < ACC_H; a += p) {
+	uint shiftFStep = (HEIGHT - 1) * (65536 / ACC_H);
+	uint shiftF = 0x8000 - shiftFStep * i;
+	uint shiftWStep = (WY - 1) * (65536 / ACC_H);
+	uint shiftW = 0x8000 - shiftWStep * i;
+	//if (i == 0 && get_local_id(0) == 0) printf("Shift full: %d(%d), shift window: %d(%d)\n", shiftF, shiftFStep, shiftW, shiftWStep);
+	for (uint a = i; a < i + s; ++a) {
+		//if (!get_local_id(0)) printf("a: %d, shiftF: %d, shiftW: %d\n", a, shiftF >> 16, shiftW >> 16);
+		//if (!get_local_id(0) && get_group_id(0) == 2) printf("a: %d, shiftF: %d, shiftW: %d\n", a, shiftF >> 16, shiftW >> 16);
 		sumAngle(accs, shiftF, shiftW, a, temp);
+		barrier(CLK_LOCAL_MEM_FENCE);
 		copyP(acc, temp, FULL_ACC_W);
-		acc += FULL_ACC_W * p;
-		accs += (WIDTH + (ACC_W - WX)) * p;
-		shiftF += (((HEIGHT - 1) << 16) / (ACC_H - 1)) * p;
-		shiftW += (((WY - 1) << 16) / (ACC_H - 1)) * p;
+		acc += FULL_ACC_W;
+		accs += (WIDTH + (ACC_W - WX));
+		shiftF -= shiftFStep;
+		shiftW -= shiftWStep;
 	}
 }
 

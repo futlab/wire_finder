@@ -36,7 +36,9 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
 {
     using namespace cl;
 
-	string defines = "#define ACC_TYPE " + cvTypeToCL(accType_) + "\n";
+	string defines = 
+		"#define ACC_TYPE " + cvTypeToCL(accType_) + "\n" +
+		"#define ROW_TYPE " + cvTypeToCL(rowType_) + "\n";
     for (const auto &p : params)
         defines += "#define " + p.first + " " + std::to_string(p.second) + "\n";
 	Program program = set_->buildProgram(fileName, defines);
@@ -62,18 +64,19 @@ std::string HoughLinesV::getCounters()
 	return cAccumulate_.timeStr() + cAccumulateRows_.timeStr() + cSumAccumulator_.timeStr() + cCollectLines_.timeStr();
 }
 
-void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string, int> *paramsOut)
+void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std::map<string, int> *paramsOut)
 {
 	accType_ = accType;
-    uint wx = 160, wy = 45, accH = 128, maxLines = 1024;
+	rowType_ = rowType;
+    uint wx = 64, wy = 30, accH = 128, maxLines = 1024;
     uint localMemorySize = (uint)set_->getLocalSize();
-    //uint wx = localMemorySize / (accH * cvTypeSize(accType)) - wy + 1;
+    //uint wx = localMemorySize / (accH * cvTypeSize(rowType)) - wy + 1;
 	uint horGroups = size.width / wx;// (size.width + wx - 1) / wx;
 	uint verGroups = size.height / wy;
     //wx = size.width / horGroups;
 
 	int accW = (int)alignSize(wx + wy - 1);
-	assert(accW * accH * cvTypeSize(accType_) < localMemorySize);
+	assert(accW * accH * cvTypeSize(rowType_) < localMemorySize);
 
 	const vector<pair<string, int> > params = {
         {"WX", (int)wx},
@@ -82,6 +85,7 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
         {"ACC_H", accH},
         {"WIDTH", size.width},
 		{"HEIGHT", size.height},
+		{"FULL_ACC_W", alignSize(size.width + size.height - 1)},
 		{"MAX_LINES", maxLines}
     };
     loadKernels("hough.cl", params);
@@ -94,8 +98,8 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
 	scanGlobalSize_ = NDRange(horGroups * localSize_[0], verGroups);
 
     source_		= MatBuffer(set_, size, CV_8U, CL_MEM_READ_ONLY);
-    accs_		= MatBuffer(set_, cv::Size(accW, accH * verGroups * horGroups), accType_);
-	accRows_	= MatBuffer(set_, cv::Size(size.width + (accW - wx), accH * verGroups), accType_);
+    accs_		= MatBuffer(set_, cv::Size(accW, accH * verGroups * horGroups), rowType_);
+	accRows_	= MatBuffer(set_, cv::Size(size.width + (accW - wx), accH * verGroups), rowType_);
 	linesCount_ = BufferT<uint>(set_);
 	lines_		= BufferT<LineV>(set_, maxLines);
 	flags_		= BufferT<ushort>(set_, scanGlobalSize_[0] * scanGlobalSize_[1] / localSize_[0]);
@@ -165,7 +169,7 @@ void HoughLinesV::accumulateRows(const cv::Mat & source, cv::Mat & rows)
 void HoughLinesV::sumAccumulator()
 {
 	cl::Event e;
-	set_->queue.enqueueNDRangeKernel(kSumAccumulator_, cl::NDRange(), cl::NDRange(localSize_[0] * 16), localSize_, nullptr, &e);
+	set_->queue.enqueueNDRangeKernel(kSumAccumulator_, cl::NDRange(), cl::NDRange(localSize_[0] * 8), localSize_, nullptr, &e);
 	cSumAccumulator_.inc(e);
 }
 

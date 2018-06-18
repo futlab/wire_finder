@@ -202,7 +202,7 @@ bool testScan(Set *set)
 	uint w = 640, h = 180;
 	cv::Size size(w, h);
 	cv::Mat src = cv::Mat::zeros(size, CV_8U);
-	src.data[2 + w * 15] = 1;
+	src.data[1 + w * 5] = 1;
 	for (int x = 0; x < 600; x += 50 + x / 4) {
 		int y = (x & 0xF) * 10;
 		cv::line(src, cv::Point(50 + x, 1 + y), cv::Point(55 + x, 37), cv::Scalar(1));
@@ -240,18 +240,21 @@ bool testScan(Set *set)
 	std::cout << "Hough test scan full: " << (resultFull ? std::to_string(resultFull) + " errors" : "Ok") << std::endl;
 
 	std::vector<LineV> lines, linesCL;
-	hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
-	
-	hlv.collectLines(accCL);
-	hlv.readLines(linesCL);
+	int resultLines = 0;
+	if (!resultFull && !resultRows) {
+		hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
 
-	int result = compareLines(lines, linesCL);
-	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+		hlv.collectLines(accCL);
+		hlv.readLines(linesCL);
+
+		resultLines = compareLines(lines, linesCL);
+		std::cout << "Compare lines: " << (resultLines ? std::to_string(resultLines) + " errors" : "Ok") << std::endl;
+	}
 
 #ifdef SHOW_RES
 	showScaledDrawLines("src", src, lines);
 	showScaled("acc", acc, lines);
-	showScaled("accCL", acc, lines);
+	showScaled("accCL", accCL, lines);
 	showScaled("accs", accs);
 	showScaled("accsCL", accsCL);
 	if (resultFull)
@@ -260,7 +263,7 @@ bool testScan(Set *set)
 		cv::imshow("result", cmpRows);
 	cv::waitKey();
 #endif
-	return !result;
+	return !resultLines;
 }
 
 void houghTest(Set *set)
