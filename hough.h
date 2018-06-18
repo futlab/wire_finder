@@ -59,36 +59,40 @@ public:
 
 	// Reference:
 	template<typename ACC_TYPE = unsigned char, int ACC_H = 128>
-	void accumulateRef(const cv::Mat &source, cv::Mat &acc) {
+	void accumulateRef(const cv::Mat &source, cv::Mat &acc, uint yw = 0) {
 		// Declare and initialize accumulator
 		const uint accW = alignSize(source.cols + source.rows - 1);
 
 		acc = cv::Mat::zeros(cv::Size(accW, ACC_H), cvType<ACC_TYPE>());
 
 		// Shift parameters
-		const uint shiftStep = (uint)(65536.f / (ACC_H - 1) * (source.rows - 1));
+		const uint
+			shiftStart = ((0 + yw) << 16) - yw * (65536 / ACC_H) + 0x8000,
+			shiftStep = (2 * yw + source.rows - 1) * (65536 / ACC_H);
+			//(uint)(65536.f / (ACC_H - 1) * (source.rows - 1));
 		//printf("shiftStart %d, shiftStep %d\n", shiftStart, shiftStep);
 
 		// Scan image window
 		const uchar *pSrc = (const uchar*)source.data;
 		for (uint y = 0; y < (uint)source.rows; ++y) {
-			uint bStep = (uint)(2.0f / (ACC_H - 1) * 65536.f * y);
+			uint bStep = (y + yw) * (2 * 65536 / ACC_H);
 			for (int xc = 0; xc < source.cols; ++xc) {
 				uchar value = *(pSrc++);
 				ACC_TYPE *pAcc = (ACC_TYPE *)acc.data;
-				uint b = ((xc + y) << 16) | 0x8000;
-				uint shift = 0;
+				uint b = (((xc + y + yw) << 16) | 0x8000) - (y + yw) * (65536 / ACC_H);
+				uint shift = shiftStart;
 				for (uint a = 0; a < ACC_H; a++) {
 					//float bf = x + xc - y * ((float)a * 2.0f / (ACC_H - 1) - 1.0f);
 					//assert(round(bf) == (signed(b) >> 16));
-					uint idx = (b - shift & 0xFFFF0000) >> 16;
+					uint idx = (b - (shift & 0xFFFF0000)) >> 16;
 					//if (value) printf("xc: %d, a: %d; idx: %d\n", xc, a, idx);
-					//assert(idx < ACC_W);
+					assert(idx < (uint)(source.cols + source.rows - 1));
 					pAcc[idx] = add_sat<ACC_TYPE>(pAcc[idx], value);
 					b -= bStep;
 					shift -= shiftStep;
 					pAcc += accW;
 				}
+				assert(b + bStep == (((xc - y - yw) << 16) | 0x8000) + (y + yw) * (65536 / ACC_H));
 			}
 		}
 	}

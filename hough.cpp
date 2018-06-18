@@ -69,7 +69,7 @@ void HoughLinesV::initialize(const cv::Size &size, int accType, std::map<string,
     uint localMemorySize = (uint)set_->getLocalSize();
     //uint wx = localMemorySize / (accH * cvTypeSize(accType)) - wy + 1;
 	uint horGroups = size.width / wx;// (size.width + wx - 1) / wx;
-    uint verGroups = size.height / wy;
+	uint verGroups = size.height / wy;
     //wx = size.width / horGroups;
 
 	int accW = (int)alignSize(wx + wy - 1);

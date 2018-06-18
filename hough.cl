@@ -93,30 +93,29 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateLoca
 	uint xw = WX * get_group_id(0), yw = WY * get_group_id(1), x = xw + get_local_id(0);
 
 	// Shift parameters
-	const uint shiftStart = getShiftStart(xw, yw), shiftStep = getShiftStepByA(yw);
-    //printf("shiftStart %d, shiftStep %d\n", shiftStart, shiftStep);
+	const uint 
+		shiftStart = ((xw + yw) << 16) - yw * (65536 / ACC_H) + 0x8000,
+		shiftStep = (2 * yw + WY - 1) * (65536 / ACC_H);
 
 	// Scan image window
 	__global const uchar *pSrc = src + mad24(yw, step, x);
+	uint bStep = yw * (2 * 65536 / ACC_H);
 	for (uint y = yw; y < yw + WY; y++) {
-        uint bStep = (uint)(2.0f / (ACC_H - 1) * 65536.f * y);
+		uint bStart = (((x + y) << 16) | 0x8000) - y * (65536 / ACC_H);
 		for (int xc = 0; xc < WX; xc += groupSize) {
 			uchar value = pSrc[xc];
             __local ACC_TYPE *pAcc = acc;
-			uint b = ((x + xc + y) << 16) | 0x8000;
-			uint shift = shiftStart;
+			uint shift = shiftStart, b = bStart;
 			for (uint a = 0; a < ACC_H; a++) {
-				/*float bf = x + xc - y * ((float)a * 2.0f / (ACC_H - 1) - 1.0f);
-				assert(round(bf) == (signed(b) >> 16));*/
-				uint idx = (b - shift & 0xFFFF0000) >> 16;
-                //if (value) printf("xc: %d, a: %d; idx: %d\n", xc, a, idx);
-				assert(idx < ACC_W);
+				uint idx = (b - (shift & 0xFFFF0000)) >> 16;
                 pAcc[idx] = add_sat(pAcc[idx], (ACC_TYPE)value);
 				b -= bStep;
 				shift -= shiftStep;
 				pAcc += ACC_W;
 			}
+			bStart += groupSize << 16;
 		}
+		bStep += 2 * 65536 / ACC_H;
 		pSrc += step;
 		barrier(CLK_LOCAL_MEM_FENCE);
 	}
@@ -268,34 +267,6 @@ void glueLocalAccRows(__local ACC_TYPE *acc, __global ACC_TYPE *dst, __global vo
 		}
 	}
 	// if (!get_local_id(0)) printf("Group %d (%d) exit - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
-}
-
-void storeLocalRows(__local ACC_TYPE *acc, __global ACC_TYPE *dst)
-{
-	uint rowWidth = get_num_groups(0) * WX + (ACC_W - WX); // Row width in the global memory
-	if (get_group_id(0) == 0)
-		copyRect(
-			dst, acc,  
-			rowWidth - ACC_W,	// dst step
-			0,					// src step
-			ACC_W,				// width
-			ACC_H);				// height
-	else
-		copyRect(
-			dst + mad24(
-				(uint)get_group_id(1),
-				rowWidth * ACC_H,
-				mad24(
-					(uint)get_group_id(0),
-					(uint)WX,
-					(uint)(ACC_W - WX)
-				)
-			),
-			acc + (ACC_W - WX),		// source
-			rowWidth - WX,			// dst step
-			ACC_W - WX,				// src step
-			WX,						// width
-			ACC_H);					// height
 }
 
 __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ACC_TYPE *dst, __global volatile uint *flags)

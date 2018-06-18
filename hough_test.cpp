@@ -219,9 +219,9 @@ bool testScan(Set *set)
 
 	hlv.accumulateRef<ushort>(src, acc);
 
-	for (int x = 0; x < 4; x++) {
+	for (int x = 0, yw = 0; x < 4; x++, yw += 45) {
 		cv::Mat a, s = src(cv::Rect(0, x * 45, src.cols, 45));
-		hlv.accumulateRef<ushort>(s, a);
+		hlv.accumulateRef<ushort>(s, a, yw);
 		accs.push_back(a);
 	}
 
