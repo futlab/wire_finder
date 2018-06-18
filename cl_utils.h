@@ -63,7 +63,7 @@ namespace cl
 		void read(cv::Mat &result, bool blocking = true);
 		cv::Mat read();
 		cv::Mat readScaled();
-
+		void fill(uint value = 0);
 		void write(const cv::Mat &source, bool blocking = false);
 	};
 

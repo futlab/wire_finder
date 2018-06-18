@@ -68,7 +68,7 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std
 {
 	accType_ = accType;
 	rowType_ = rowType;
-    uint wx = 64, wy = 30, accH = 128, maxLines = 1024;
+    uint wx = 64, wy = 45, accH = 128, maxLines = 1024;
     uint localMemorySize = (uint)set_->getLocalSize();
     //uint wx = localMemorySize / (accH * cvTypeSize(rowType)) - wy + 1;
 	uint horGroups = size.width / wx;// (size.width + wx - 1) / wx;
@@ -155,6 +155,7 @@ void HoughLinesV::accumulateRows(const cv::Mat & source)
 {
 	source_.write(source);
 	flags_.fill();
+	accRows_.fill();
 	cl::Event e;
 	set_->queue.enqueueNDRangeKernel(kAccumulateRows_, cl::NDRange(), scanGlobalSize_, localSize_, nullptr, &e);
 	cAccumulateRows_.inc(e);

@@ -150,6 +150,11 @@ namespace cl
 		return result;
 	}
 
+	void MatBuffer::fill(uint value)
+	{
+		set_->queue.enqueueFillBuffer(*this, value, 0, size_.area() * cvTypeSize(type_));
+	}
+
 	void MatBuffer::write(const cv::Mat & source, bool blocking)
 	{
 		assert(!source.empty() && source.type() == type_ && source.size() == size_);
