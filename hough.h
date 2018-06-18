@@ -37,7 +37,7 @@ private:
 	cl::Counter cAccumulate_, cAccumulateRows_, cSumAccumulator_, cCollectLines_;
     void loadKernels(const std::string &fileName, const std::vector<std::pair<std::string, int>> &params);
     cl::NDRange localSize_, scanGlobalSize_;
-	cl::BufferT<ushort> flags_;
+	cl::BufferT<uint> flags_;
 	cl::BufferT<LineV> lines_;
 	cl::BufferT<uint> linesCount_;
 	int accType_, rowType_;

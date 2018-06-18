@@ -102,7 +102,7 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std
 	accRows_	= MatBuffer(set_, cv::Size(size.width + (accW - wx), accH * verGroups), rowType_);
 	linesCount_ = BufferT<uint>(set_);
 	lines_		= BufferT<LineV>(set_, maxLines);
-	flags_		= BufferT<ushort>(set_, scanGlobalSize_[0] * scanGlobalSize_[1] / localSize_[0]);
+	flags_		= BufferT<uint>(set_, horGroups * verGroups);
 
 	auto &sourceSize = source_.size();
 	uint accWidth = alignSize(sourceSize.width + sourceSize.height - 1);
@@ -155,7 +155,7 @@ void HoughLinesV::accumulateRows(const cv::Mat & source)
 {
 	source_.write(source);
 	flags_.fill();
-	accRows_.fill();
+	//accRows_.fill();
 	cl::Event e;
 	set_->queue.enqueueNDRangeKernel(kAccumulateRows_, cl::NDRange(), scanGlobalSize_, localSize_, nullptr, &e);
 	cAccumulateRows_.inc(e);
