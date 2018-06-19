@@ -98,6 +98,23 @@ public:
 			}
 		}
 	}
+	template<typename ACC_TYPE = unsigned char>
+	cv::Mat rectifyAccumulatorRef(const cv::Mat &acc, uint imageHeight)
+	{
+		const uint accH = acc.rows;
+		const uint shiftStep = (imageHeight - 1) * (65536 / accH);
+		uint shift = 0x8000;
+		cv::Mat result = cv::Mat::zeros(cv::Size(acc.cols + imageHeight, accH), cvType<ACC_TYPE>());
+		const ACC_TYPE *s = (const ACC_TYPE *)acc.data;
+		ACC_TYPE *d = (ACC_TYPE *)result.data;
+		for (uint a = 0; a < accH; ++a) {
+			for (uint b = 0; b < (uint)acc.cols; b++)
+				d[b + imageHeight + short(shift >> 16)] = *(s++);
+			d += result.cols;
+			shift -= shiftStep;
+		}
+		return result;
+	}
 	template<typename ACC_TYPE = unsigned char, uint D = 2>
 	void collectLinesRef(const cv::Mat &acc, ACC_TYPE threshold, std::vector<LineV> &lines) {
 		assert(acc.type() == cvType<ACC_TYPE>());

@@ -204,7 +204,7 @@ bool testScan(Set *set)
 	uint w = 640, h = 180;
 	cv::Size size(w, h);
 	cv::Mat src = cv::Mat::zeros(size, CV_8U);
-	src.data[1 + w * 5] = 1;
+	src.data[1 + w * 0] = 1;
 	for (int x = 0; x < 600; x += 50 + x / 4) {
 		int y = (x & 0xF) * 10;
 		cv::line(src, cv::Point(50 + x, 1 + y), cv::Point(55 + x, 37), cv::Scalar(1));
@@ -220,6 +220,7 @@ bool testScan(Set *set)
 	cv::Mat accCL, accsCL; //= cv::Mat::zeros(accSize, CV_8U);
 
 	hlv.accumulateRef<ushort>(src, acc);
+	cv::Mat accRect = hlv.rectifyAccumulatorRef<ushort>(acc, h);
 
 	for (int x = 0, yw = 0; x < 4; x++, yw += 45) {
 		cv::Mat a, s = src(cv::Rect(0, x * 45, src.cols, 45));
@@ -258,6 +259,7 @@ bool testScan(Set *set)
 #ifdef SHOW_RES
 		showScaledDrawLines("src", src, lines);
 		showScaled("acc", acc, lines);
+		showScaled("accRect", accRect);
 		showScaled("accCL", accCL, lines);
 		showScaled("accs", accs);
 		showScaled("accsCL", accsCL);
