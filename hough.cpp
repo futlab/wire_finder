@@ -64,11 +64,12 @@ std::string HoughLinesV::getCounters()
 	return cAccumulate_.timeStr() + cAccumulateRows_.timeStr() + cSumAccumulator_.timeStr() + cCollectLines_.timeStr();
 }
 
-void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std::map<string, int> *paramsOut)
+void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, uint collectThreshold)
 {
 	accType_ = accType;
 	rowType_ = rowType;
-    uint wx = 64, wy = 45, accH = 128, maxLines = 1024;
+	maxLines_ = 1024;
+    uint wx = 64, wy = 45, accH = 128;
     uint localMemorySize = (uint)set_->getLocalSize();
     //uint wx = localMemorySize / (accH * cvTypeSize(rowType)) - wy + 1;
 	uint horGroups = size.width / wx;// (size.width + wx - 1) / wx;
@@ -86,14 +87,14 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std
         {"WIDTH", size.width},
 		{"HEIGHT", size.height},
 		{"FULL_ACC_W", alignSize(size.width + size.height - 1)},
-		{"MAX_LINES", maxLines}
+		{"MAX_LINES", maxLines_}
     };
     loadKernels("hough.cl", params);
-    if (paramsOut) {
+    /*if (paramsOut) {
         paramsOut->clear();
         for (const auto &p : params)
             paramsOut->insert(p);
-    }
+    }*/
 	using namespace cl;
 	scanGlobalSize_ = NDRange(horGroups * localSize_[0], verGroups);
 
@@ -101,7 +102,7 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std
     accs_		= MatBuffer(set_, cv::Size(accW, accH * verGroups * horGroups), rowType_);
 	accRows_	= MatBuffer(set_, cv::Size(size.width + (accW - wx), accH * verGroups), rowType_);
 	linesCount_ = BufferT<uint>(set_);
-	lines_		= BufferT<LineV>(set_, maxLines);
+	lines_		= BufferT<LineV>(set_, maxLines_);
 	flags_		= BufferT<uint>(set_, horGroups * verGroups);
 
 	auto &sourceSize = source_.size();
@@ -128,7 +129,6 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, std
 
 	// Kernel collectLines: acc_, threshold, step => linescount_, lines_
 	kCollectLines_.setArg(0, accumulator);
-	uint collectThreshold = 10;
 	kCollectLines_.setArg(1, collectThreshold);
 	uint accStep = accumulator.size().width;
 	kCollectLines_.setArg(2, accStep);
@@ -176,11 +176,15 @@ void HoughLinesV::sumAccumulator()
 
 void HoughLinesV::readLines(std::vector<LineV>& lines)
 {
-	uint size;
-	set_->queue.enqueueReadBuffer(linesCount_, true, 0, sizeof(uint), &size);
-	lines.resize(size);
-	if (size)
-		set_->queue.enqueueReadBuffer(lines_, true, 0, size * sizeof(LineV), lines.data());
+	uint count;
+	set_->queue.enqueueReadBuffer(linesCount_, true, 0, sizeof(uint), &count);
+	if (count > maxLines_) {
+		printf("Too much lines: %d\n", count);
+		count = maxLines_;
+	}
+	lines.resize(count);
+	if (count)
+		set_->queue.enqueueReadBuffer(lines_, true, 0, count * sizeof(LineV), lines.data());
 }
 
 void HoughLinesV::collectLines()
@@ -198,3 +202,39 @@ void HoughLinesV::collectLines(const cv::Mat & source)
 	collectLines();
 }
 
+#include <opencv2/imgproc.hpp>
+
+
+void HoughLinesV::drawMarkers(cv::Mat & out, const std::vector<LineV> &lines)
+{
+	if (out.type() == CV_8U)
+		cv::cvtColor(out, out, CV_GRAY2RGB);
+	cv::Mat markers = cv::Mat::zeros(out.size(), CV_8UC3);
+	for (auto &l : lines) {
+		cv::drawMarker(markers, cv::Point(l.b, l.a), cv::Scalar(255, 0, 0, 50), cv::MARKER_SQUARE);
+	}
+	cv::addWeighted(out, 1, markers, 0.2, 0, out);
+}
+
+cv::Mat HoughLinesV::drawLines(const cv::Mat &src, const std::vector<LineV> &lines)
+{
+	cv::Mat out;
+	src.copyTo(out);
+	if (out.type() == CV_8U)
+		cv::cvtColor(out, out, CV_GRAY2RGB);
+	if (out.type() == CV_8UC4)
+		cv::cvtColor(out, out, CV_RGBA2RGB);
+	uint m = 0;
+	for (auto &l : lines)
+		if (l.value > m)
+			m = l.value;
+
+	cv::Mat markers = out;// cv::Mat::zeros(out.size(), CV_8UC3);
+	for (auto &l : lines) {
+		int shift = l.a * (markers.rows - 1) / 127;
+		int b = l.b - shift;
+		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+	}
+	//cv::addWeighted(out, 1, markers, 0.9, 0, out);
+	return out;
+}

@@ -50,7 +50,7 @@ public:
         diffV = kernels[1];
         diff5 = kernels[2];
         diffint = kernels[3];
-		hlv.initialize(size, CV_8U, CV_16U);
+		hlv.initialize(size, CV_8U, CV_16U, 150);
     }
 	void printCounters()
 	{
@@ -74,7 +74,7 @@ public:
           cv::line( m, cv::Point(l[0], l[1]), cv::Point(l[2], l[3]), color, 1, CV_AA);
         }
     }
-    cv::Mat process5(const cv::Mat &src, const std::string &name)
+    cv::Mat process5(cv::Mat &src, const std::string &name)
     {
         cv::Mat buf;
         cv::resize(src, buf, size_);
@@ -100,7 +100,6 @@ public:
         cv::Mat diRes(size_, CV_8U);
         cldiResult.read(diRes.data);
         cv::imshow(name, diRes);
-		cv::Mat acc;
 
 		cv::threshold(diRes, diRes, 2, 2, cv::THRESH_TRUNC);
 
@@ -108,7 +107,17 @@ public:
 		//cv::imshow(name + " accRows", hlv.accRows_.readScaled());
 
 		hlv.sumAccumulator();
-		cv::imshow(name + " accRows", hlv.accumulator.readScaled());
+		hlv.collectLines();
+		std::vector<LineV> lines;
+		hlv.readLines(lines);
+		cv::Mat acc = hlv.accumulator.readScaled();
+		hlv.drawMarkers(acc, lines);
+		cv::imshow(name + " accRows", acc);
+
+		cv::Mat out = hlv.drawLines(src, lines);
+		
+		return out;
+
 		/*hlv.accumulator.read(acc);
 
 		//hlv.accumulateRef<ushort>(diRes, acc);
@@ -176,7 +185,7 @@ public:
             }
         double min, max;
         cv::minMaxLoc(hist, &min, &max);
-        cv::Mat out;
+        //cv::Mat out;
         hist.convertTo(out, CV_8U, 128 / std::max(max, -min), 128);
         //for (unsigned char *c = hist.data; c < hist.dataend; ++c)
         //    if (*c == 128) *c = 0;
@@ -258,10 +267,10 @@ void zedWork(CLFilter &f)
             cv::line(left_, cv::Point(x1, 0), cv::Point(x2, size.height - 1), cv::Scalar(255, 0, 0));
             cv::line(right_, cv::Point(x1, 0), cv::Point(x2, size.height - 1), cv::Scalar(255, 0, 0));
         }
-        cv::imshow("Left", left_);
-        cv::imshow("Right", right_);
-        cv::Mat outL = f.process5(left, "left");
-        cv::Mat outR = f.process5(right, "right");
+		cv::Mat outL = f.process5(left, "left");
+		cv::Mat outR = f.process5(right, "right");
+		cv::imshow("Left", outL);
+        cv::imshow("Right", outR);
 
 		f.printCounters();
 
@@ -274,7 +283,8 @@ void zedWork(CLFilter &f)
         //cv::imshow("Right result", outR);
         switch(cv::waitKey(1)) {
         case 'q': return;
-        case 'p': pause = !pause;
+		case 'p': pause = !pause; break;
+		case '+': zed.setSVOPosition(zed.getSVOPosition() + 500);
         }
     }
 }

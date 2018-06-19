@@ -35,7 +35,7 @@
 #endif
 
 #ifndef D
-#define D 2
+#define D 3
 #endif
 
 #ifndef MAX_LINES
@@ -359,6 +359,7 @@ __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint st
 		*linesCount = 0;
 	if (!get_local_id(0))
 		localCounter = 0;
+	barrier(CLK_LOCAL_MEM_FENCE);
 
 	ACC_TYPE row[DF], maxBuf[DF] = {}, valueQueue[D] = {};
 	acc += get_global_id(0);
@@ -389,16 +390,14 @@ __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint st
 	}
 	barrier(CLK_LOCAL_MEM_FENCE);
 	uint count = localCounter;
+	// if (!get_local_id(0)) printf("Group %d, total line count %d, local %d\n", get_group_id(0), *linesCount, count);
 	if (!count) return;
-	uint idx;
 	__local uint lIdx;
 	if (!get_local_id(0)) {
-		idx = atomic_add(linesCount, count);
-		lIdx = idx;
+		lIdx = atomic_add(linesCount, count);
 	}
 	barrier(CLK_LOCAL_MEM_FENCE);
-	if (get_local_id(0))
-		idx = lIdx;
+	uint idx = lIdx;
 
 	if (idx >= MAX_LINES) return;
 	__local Line *ll = localLines + get_local_id(0);

@@ -199,6 +199,8 @@ bool testScanOneRow(Set *set)
 
 bool testScan(Set *set)
 {
+	HoughLinesV hlv(set);
+
 	uint w = 640, h = 180;
 	cv::Size size(w, h);
 	cv::Mat src = cv::Mat::zeros(size, CV_8U);
@@ -211,9 +213,9 @@ bool testScan(Set *set)
 		cv::line(src, cv::Point(3 + x, 5), cv::Point(15 + x, 10 + y), cv::Scalar(1));
 	}
 
-	HoughLinesV hlv(set);
 
-	hlv.initialize(size, CV_16U);
+	hlv.initialize(size, CV_16U, CV_16U);
+
 	cv::Mat acc, accs; //= cv::Mat::zeros(accSize, CV_8U);
 	cv::Mat accCL, accsCL; //= cv::Mat::zeros(accSize, CV_8U);
 
@@ -225,45 +227,48 @@ bool testScan(Set *set)
 		accs.push_back(a);
 	}
 
-	hlv.accumulateRows(src, accsCL);
-	hlv.sumAccumulator();
-	hlv.accumulator.read(accCL);
+	for (int it = 0; it < 4; it++) {
+		hlv.accumulateRows(src, accsCL);
+		hlv.sumAccumulator();
+		hlv.accumulator.read(accCL);
 
-	cv::Mat cmpRows;
-	cv::compare(accs, accsCL, cmpRows, cv::CMP_NE);
-	int resultRows = cv::countNonZero(cmpRows);
-	std::cout << "Hough test scan rows: " << (resultRows ? std::to_string(resultRows) + " errors" : "Ok") << std::endl;
+		cv::Mat cmpRows;
+		//int tt = accsCL.type(), tt1 = accs.type();
+		cv::compare(accs, accsCL, cmpRows, cv::CMP_NE);
+		int resultRows = cv::countNonZero(cmpRows);
+		std::cout << "Hough test scan rows: " << (resultRows ? std::to_string(resultRows) + " errors" : "Ok") << std::endl;
 
-	cv::Mat cmpFull;
-	cv::compare(acc, accCL, cmpFull, cv::CMP_NE);
-	int resultFull = cv::countNonZero(cmpFull);
-	std::cout << "Hough test scan full: " << (resultFull ? std::to_string(resultFull) + " errors" : "Ok") << std::endl;
+		cv::Mat cmpFull;
+		cv::compare(acc, accCL, cmpFull, cv::CMP_NE);
+		int resultFull = cv::countNonZero(cmpFull);
+		std::cout << "Hough test scan full: " << (resultFull ? std::to_string(resultFull) + " errors" : "Ok") << std::endl;
 
-	std::vector<LineV> lines, linesCL;
-	int resultLines = 0;
-	if (!resultFull && !resultRows) {
-		hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
+		std::vector<LineV> lines, linesCL;
+		int resultLines = 0;
+		if (!resultFull && !resultRows) {
+			hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
 
-		hlv.collectLines(accCL);
-		hlv.readLines(linesCL);
+			hlv.collectLines(accCL);
+			hlv.readLines(linesCL);
 
-		resultLines = compareLines(lines, linesCL);
-		std::cout << "Compare lines: " << (resultLines ? std::to_string(resultLines) + " errors" : "Ok") << std::endl;
-	}
+			resultLines = compareLines(lines, linesCL);
+			std::cout << "Compare lines: " << (resultLines ? std::to_string(resultLines) + " errors" : "Ok") << std::endl;
+		}
 
 #ifdef SHOW_RES
-	showScaledDrawLines("src", src, lines);
-	showScaled("acc", acc, lines);
-	showScaled("accCL", accCL, lines);
-	showScaled("accs", accs);
-	showScaled("accsCL", accsCL);
-	if (resultFull)
-		cv::imshow("result", cmpFull);
-	if (resultRows)
-		cv::imshow("result", cmpRows);
-	cv::waitKey();
+		showScaledDrawLines("src", src, lines);
+		showScaled("acc", acc, lines);
+		showScaled("accCL", accCL, lines);
+		showScaled("accs", accs);
+		showScaled("accsCL", accsCL);
+		if (resultFull)
+			cv::imshow("result", cmpFull);
+		if (resultRows)
+			cv::imshow("result", cmpRows);
+		cv::waitKey();
 #endif
-	return !resultLines;
+	}
+	return 0;
 }
 
 void houghTest(Set *set)
@@ -280,18 +285,7 @@ void houghTest(Set *set)
     HoughLinesV hlv(set);
     hlv.initialize(src.size());
 
-    //hlv
     hlv.find(src, accs);
-
-    /*numGroups[1] = 3;
-	for (groupId[1] = 0; groupId[1] < numGroups[1]; groupId[1]++)
-		for (groupId[0] = 0; groupId[0] < numGroups[0]; groupId[0]++)
-			houghScan(src.data, 1280, (ACC_TYPE *)accs.data);
-
-    numGroups[1] = 1;*/
-
-    //for (groupId[0] = 0; groupId[0] < numGroups[0]; groupId[0]++)
-
 
 	double min, max;
 	cv::minMaxLoc(accs, &min, &max);
@@ -302,3 +296,5 @@ void houghTest(Set *set)
 	cv::imshow("src", src);
 	cv::waitKey();
 }
+
+
