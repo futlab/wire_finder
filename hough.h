@@ -116,7 +116,7 @@ public:
 		return result;
 	}
 	template<typename ACC_TYPE = unsigned char, uint D = 2>
-	void collectLinesRef(const cv::Mat &acc, ACC_TYPE threshold, std::vector<LineV> &lines) {
+	void collectLinesRef(const cv::Mat &acc, ACC_TYPE threshold, std::vector<LineV> &lines, uint imageHeight) {
 		assert(acc.type() == cvType<ACC_TYPE>());
 		const ACC_TYPE *pAcc = (const ACC_TYPE *)acc.data;
 		const int winStep = acc.cols - 1 - 2 * D;
@@ -139,7 +139,9 @@ public:
 					pWin += winStep;
 				}
 				if (pWin) {
-					lines.push_back({value, 0, (short)yw, (short)xw});
+					short a = (2 * yw - (acc.rows - 1)) * (32768 / acc.rows);
+					short b = xw - imageHeight;
+					lines.push_back({value, 0, a, b});
 				}
 			}
 	}

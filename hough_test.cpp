@@ -77,9 +77,11 @@ void showScaledDrawLines(const cv::String &name, const cv::Mat src, const std::v
 			m = l.value;
 
 	for (auto &l : lines) {
-		int shift = l.a * (markers.rows - 1) / 127;
+		/*int shift = l.a * (markers.rows - 1) / 127;
 		int b = l.b - shift;
-		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));*/
+		cv::line(markers, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * markers.rows) >> 15)), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+
 	}
 	cv::addWeighted(out, 1, markers, 0.6, 0, out);
 	cv::imshow(name, out);
@@ -131,7 +133,7 @@ bool testScanOneGroup(Set *set)
 	std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
 
 	std::vector<LineV> lines, linesCL;
-	hlv.collectLinesRef<ushort>(accs, 20, lines);
+	hlv.collectLinesRef<ushort>(accs, 20, lines, h);
 	hlv.collectLines(accsCL);
 	hlv.readLines(linesCL);
 
@@ -213,7 +215,6 @@ bool testScan(Set *set)
 		cv::line(src, cv::Point(3 + x, 5), cv::Point(15 + x, 10 + y), cv::Scalar(1));
 	}
 
-
 	hlv.initialize(size, CV_16U, CV_16U);
 
 	cv::Mat acc, accs; //= cv::Mat::zeros(accSize, CV_8U);
@@ -247,7 +248,7 @@ bool testScan(Set *set)
 		std::vector<LineV> lines, linesCL;
 		int resultLines = 0;
 		if (!resultFull && !resultRows) {
-			hlv.collectLinesRef<ushort, 4>(acc, 10, lines);
+			hlv.collectLinesRef<ushort, 4>(accRect, 20, lines, h);
 
 			hlv.collectLines(accCL);
 			hlv.readLines(linesCL);
@@ -258,8 +259,8 @@ bool testScan(Set *set)
 
 #ifdef SHOW_RES
 		showScaledDrawLines("src", src, lines);
-		showScaled("acc", acc, lines);
-		showScaled("accRect", accRect);
+		showScaled("acc", acc);
+		showScaled("accRect", accRect, lines);
 		showScaled("accCL", accCL, lines);
 		showScaled("accs", accs);
 		showScaled("accsCL", accsCL);
