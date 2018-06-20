@@ -352,7 +352,7 @@ inline ACC_TYPE rowMax(const ACC_TYPE *row)
 
 typedef struct __attribute__((packed)) _Line
 {
-	ushort value, desc;
+	ushort value, width;
 	short a, b;
 } Line;
 
@@ -498,5 +498,6 @@ __kernel void refineLines(__global const uchar *source, __global Line *lines)
 	}
 	line->b = (short)((sy2 * sx - sy * sxy) / d);
 	line->a = (short)(((float)maxN * sxy - (float)sx * sy) / d * 32768);
+	line->width = maxX;
 }
 

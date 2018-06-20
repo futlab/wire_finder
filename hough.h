@@ -116,6 +116,7 @@ public:
 	template<typename ACC_TYPE = unsigned char, uint D = 2>
 	void collectLinesRef(const cv::Mat &acc, ACC_TYPE threshold, std::vector<LineV> &lines, uint imageHeight) {
 		assert(acc.type() == cvType<ACC_TYPE>());
+		lines.clear();
 		const ACC_TYPE *pAcc = (const ACC_TYPE *)acc.data;
 		const int winStep = acc.cols - 1 - 2 * D;
 		for (uint yw = D; yw < acc.rows - D; ++yw)

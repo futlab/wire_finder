@@ -28,7 +28,6 @@ HoughLinesV::HoughLinesV(cl::Set *set) : set_(set),
 		uint ba = d.getInfo<CL_DEVICE_GLOBAL_MEM_CACHELINE_SIZE>();
 		if (ba > bytesAlign_) bytesAlign_ = ba;
 	}
-	// if (bytesAlign_ > 64) bytesAlign_ = 64;
 }
 
 

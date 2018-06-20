@@ -80,9 +80,10 @@ namespace cl
 			out.resize(count ? count : (size_ / sizeof(T)));
 			set_->queue.enqueueReadBuffer(*this, blocking, 0, count ? count * sizeof(T) : size_, out.data());
 		}
-		void write(const std::vector<T> &in, bool blocking = false) {
-			assert(in.size() * sizeof(T) < size_);
-			set_->queue.enqueueWriteBuffer(*this, blocking, 0, in.size() * sizeof(T), in.data());
+		void write(const std::vector<T> &in, size_t count = 0, bool blocking = false) {
+			if (!count) count = in.size();
+			assert(count * sizeof(T) < size_);
+			set_->queue.enqueueWriteBuffer(*this, blocking, 0, count * sizeof(T), in.data());
 		}
 
 		BufferT<T>& operator = (const BufferT<T> &buf) {

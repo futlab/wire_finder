@@ -102,10 +102,12 @@ namespace cl
 		switch (type) {
 		case CV_8U: return 1;
 		case CV_16U: return 2;
-		default: return 0;
+		case CV_8UC4: return 4;
+		default:
+			assert(!"Unknown cv type");
+			return 0;
 		}
 	}
-
 
 	inline MatBuffer::MatBuffer(const MatBuffer & source) : 
 		Buffer(source), size_(source.size()), set_(source.set_)
