@@ -228,6 +228,28 @@ void HoughLinesV::refineLines(std::vector<LineV> &lines)
 	lines_.read(lines, lines.size());
 }
 
+void HoughLinesV::filterLines(std::vector<LineV>& lines)
+{
+	std::vector<LineV> result;
+	int height = source_.size().height;
+	for (const auto &s : lines) {
+		bool found = false;
+		for (auto &r : result)
+			if (abs(r.b - s.b) < 3) {
+				int re = r.b + ((int(r.a) * height) >> 15);
+				int se = s.b + ((int(r.a) * height) >> 15);
+				if (abs(re - se) < 3) {
+					found = true;
+					if (r.value < s.value)
+						r = s;
+				}
+			}
+		if (!found)
+			result.push_back(s);
+	}
+	lines = result;
+}
+
 #include <opencv2/imgproc.hpp>
 
 

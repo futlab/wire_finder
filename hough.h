@@ -55,6 +55,7 @@ public:
 	void collectLines(const cv::Mat &source);
 	void refineLines();
 	void refineLines(std::vector<LineV> &lines);
+	void filterLines(std::vector<LineV> &lines);
 
 	// Reference:
 	template<typename ACC_TYPE = unsigned char, int ACC_H = 128>
