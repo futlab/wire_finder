@@ -10,6 +10,7 @@
 // OpenCL
 #include "cl_utils.h"
 
+#include "defs.h"
 
 void houghTest(cl::Set *set);
 
@@ -23,18 +24,12 @@ template<typename T> T add_sat(T a, T b)
 	return a + b;
 }
 
-struct LineV
-{
-	ushort value, desc;
-	short a, b;
-};
-
 class HoughLinesV
 {
 private:
     cl::Set *set_;
-    cl::Kernel kAccumulate_, kAccumulateRows_, kSumAccumulator_, kCollectLines_;
-	cl::Counter cAccumulate_, cAccumulateRows_, cSumAccumulator_, cCollectLines_;
+    cl::Kernel kAccumulate_, kAccumulateRows_, kSumAccumulator_, kCollectLines_, kRefineLines_;
+	cl::Counter cAccumulate_, cAccumulateRows_, cSumAccumulator_, cCollectLines_, cRefineLines_;
     void loadKernels(const std::string &fileName, const std::vector<std::pair<std::string, int>> &params);
     cl::NDRange localSize_, scanGlobalSize_;
 	cl::BufferT<uint> flags_;
@@ -58,6 +53,8 @@ public:
 	void readLines(std::vector<LineV> &lines);
 	void collectLines();
 	void collectLines(const cv::Mat &source);
+	void refineLines();
+	void refineLines(std::vector<LineV> &lines);
 
 	// Reference:
 	template<typename ACC_TYPE = unsigned char, int ACC_H = 128>

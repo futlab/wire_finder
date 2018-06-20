@@ -21,7 +21,7 @@ inline constexpr uint cvTypeSize(int type)
 }
 
 HoughLinesV::HoughLinesV(cl::Set *set) : set_(set),
-	cAccumulate_("accumulate"), cAccumulateRows_("accumulateRows"), cSumAccumulator_("sumAccumulator"), cCollectLines_("collectLines")
+	cAccumulate_("accumulate"), cAccumulateRows_("accumulateRows"), cSumAccumulator_("sumAccumulator"), cCollectLines_("collectLines"), cRefineLines_("refineLines")
 {
 	bytesAlign_ = 0;
 	for (auto &d : set->devices) {
@@ -47,6 +47,7 @@ void HoughLinesV::loadKernels(const string &fileName, const vector<pair<string, 
 	kAccumulateRows_ = Kernel(program, "accumulateRows");
 	kCollectLines_ = Kernel(program, "collectLines");
 	kSumAccumulator_ = Kernel(program, "sumAccumulator");
+	kRefineLines_ = Kernel(program, "refineLines");
 
     size_t groupSize = kAccumulate_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
     localSize_ = NDRange(groupSize);
@@ -61,7 +62,7 @@ uint HoughLinesV::alignSize(uint size)
 
 std::string HoughLinesV::getCounters()
 {
-	return cAccumulate_.timeStr() + cAccumulateRows_.timeStr() + cSumAccumulator_.timeStr() + cCollectLines_.timeStr();
+	return cAccumulate_.timeStr() + cAccumulateRows_.timeStr() + cSumAccumulator_.timeStr() + cCollectLines_.timeStr() + cRefineLines_.timeStr();
 }
 
 void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, uint collectThreshold)
@@ -134,6 +135,10 @@ void HoughLinesV::initialize(const cv::Size &size, int rowType, int accType, uin
 	kCollectLines_.setArg(2, accStep);
 	kCollectLines_.setArg(3, linesCount_);
 	kCollectLines_.setArg(4, lines_);
+
+	// Kernel refineLines: source_, lines_ => lines_
+	kRefineLines_.setArg(0, source_);
+	kRefineLines_.setArg(1, lines_);
 }
 
 void HoughLinesV::find(const cv::Mat &source, cv::Mat &result)
@@ -200,6 +205,27 @@ void HoughLinesV::collectLines(const cv::Mat & source)
 {
 	accumulator.write(source);
 	collectLines();
+}
+
+void HoughLinesV::refineLines()
+{
+	using namespace cl;
+	uint count;
+	set_->queue.enqueueReadBuffer(linesCount_, true, 0, sizeof(uint), &count);
+	if (count > maxLines_) count = maxLines_;
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kRefineLines_, NDRange(), NDRange(localSize_[0] * count), localSize_, nullptr, &e);
+	cRefineLines_.inc(e);
+}
+
+void HoughLinesV::refineLines(std::vector<LineV> &lines)
+{
+	if (lines.empty()) return;
+	lines_.write(lines);
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kRefineLines_, cl::NDRange(), cl::NDRange(localSize_[0] * lines.size()), localSize_, nullptr, &e);
+	cRefineLines_.inc(e);
+	lines_.read(lines, lines.size());
 }
 
 #include <opencv2/imgproc.hpp>

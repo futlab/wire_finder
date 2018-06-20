@@ -274,8 +274,51 @@ bool testScan(Set *set)
 	return 0;
 }
 
+void calcStats(const cv::Mat &src, double &sx, double &sx2, double &sy, double &sxy, size_t &n)
+{
+	sx = sx2 = sy = sxy = 0;
+	n = 0;
+	const uint8_t *p = src.data;
+	for (int x = 0; x < src.rows; x++)
+		for (int y = 0; y < src.cols; y++, p++) {
+			uint8_t v = *p;
+			if (v > 0) {
+				sx += x;
+				sx2 += x * x;
+				sy += y;
+				sxy += x * y;
+				n++;
+			}
+		}
+}
+
+void testRefine(Set *set)
+{
+	cv::Size size(640, 480);
+	cv::Mat view = cv::Mat::zeros(size, CV_8U);
+	std::vector<LineV> lines, linesPrev;
+	lines.push_back({1, 0, 32768 / 3, 200});
+	for (auto &l : lines)
+		cv::line(view, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * view.rows) >> 15)), view.rows - 1), cv::Scalar(1));
+	double sy, sy2, sx, sxy; size_t n;
+	calcStats(view, sy, sy2, sx, sxy, n);
+
+	HoughLinesV hlv(set);
+	hlv.initialize(size);
+	hlv.source_.write(view);
+	linesPrev = lines;
+	hlv.refineLines(lines);
+
+#ifdef SHOW_RES
+	showScaledDrawLines("source", view, lines);
+	showScaledDrawLines("refine", hlv.source_.read(), lines);
+	cv::waitKey();
+#endif
+}
+
 void houghTest(Set *set)
 {
+	testRefine(set);
     testScan(set);
 
 	cv::Mat src = cv::Mat::zeros(cv::Size(1280, 720), CV_8U);

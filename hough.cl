@@ -167,6 +167,13 @@ inline void zeroP(__local ACC_TYPE *dst, uint size)
 		*d = 0;
 }
 
+inline void zeroPuint(__local uint *dst, uint size)
+{
+	for (__local uint *d = dst + get_local_id(0), *e = dst + size; d < e; d += get_local_size(0))
+		*d = 0;
+}
+
+
 inline void setP(__local ACC_TYPE *dst, uint size, ACC_TYPE value)
 {
 	for (__local ACC_TYPE *d = dst + get_local_id(0), *e = dst + size; d < e; d += get_local_size(0))
@@ -408,3 +415,88 @@ __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint st
 		ll += get_local_size(0);
 	}
 }
+
+__kernel void refineLines(__global const uchar *source, __global Line *lines)
+{
+	__global Line *line = lines + get_group_id(0);
+
+	// Gathering statistical information
+#define REFINE_STATS 16
+#define REFINE_D 8
+	/*__local volatile*/// LineStat stats[REFINE_STATS] = {};
+	uint4 stats[REFINE_STATS] = {}; // sx, sxy, sy, sy2
+	uint counters[REFINE_STATS] = {};
+	const uint id = get_local_id(0);
+	int xc = (line->b << 15) + id * line->a, step = mul24((int)line->a, (int)get_local_size(0));
+	source += WIDTH * id;
+	for (uint y = id; y < HEIGHT; y += get_local_size(0)) {
+		int xt = xc >> 15;
+		uint begin = max(xt - REFINE_D, (int)0);
+		uint end = min(xt + REFINE_D, (int)(WIDTH - 1));
+		// if (!get_local_id(0)) printf("begin: %d, end: %d\n", begin, end);
+		for (int i = 0; i < (int)(end - begin); ++i) {
+			uint x = i + begin;
+			uint value = source[x] - 1;
+			// source[x] += 1;
+			if (value < REFINE_STATS) {
+				stats[value] += (uint4)(x, mul24(x, y), y, mul24(y, y));
+				counters[value]++;
+			}
+		}
+		xc += step;
+		source += WIDTH * get_local_size(0);
+	}
+
+	// Find maximal n
+	__local volatile uint ns[REFINE_STATS];
+	zeroPuint((local uint *)ns, REFINE_STATS);
+	barrier(CLK_LOCAL_MEM_FENCE);
+	for (uint x = 0; x < REFINE_STATS; ++x)
+		atomic_add(ns + x, counters[x]);
+	barrier(CLK_LOCAL_MEM_FENCE);
+	uint maxN = 0, maxX = 0;
+	for (uint x = 0; x < REFINE_STATS; ++x) {
+		uint n = ns[x];
+		if (maxN < n) {
+			maxN = n;
+			maxX = x;
+		}
+	}
+	
+	// Sum koeffs for n and area around it
+	uint4 stat = stats[maxX];
+	if (maxX > 0) {
+		stat += stats[maxX - 1]; maxN += counters[maxX - 1];
+	}
+	if (maxX < REFINE_STATS - 1) {
+		stat += stats[maxX + 1]; maxN += counters[maxX + 1];
+	}
+
+	// Store results to local
+	__local uint4 localStats[64];
+	localStats[id] = stat;
+	barrier(CLK_LOCAL_MEM_FENCE);
+	if (id) return;
+
+	// Sum results in one item
+	uint sx = 0, sy = 0;
+	ulong sxy = 0, sy2 = 0;
+	for (uint i = 0; i < get_local_size(0); i++) {
+		uint4 s = localStats[i];
+		sx += s.s0;
+		sxy += s.s1;
+		sy += s.s2;
+		sy2 += s.s3;
+	}
+
+	//printf("n: %d, sx: %d, sxy: %d, sy: %d, sy2: %d\n", maxN, sx, (uint)sxy, sy, (uint)sy2);
+
+	float d = (float)(sy2 * maxN - (long)sy * sy);
+	if (fabs(d) < 1E-10) {
+		printf("Too small d!\n");
+		return;
+	}
+	line->b = (short)((sy2 * sx - sy * sxy) / d);
+	line->a = (short)(((float)maxN * sxy - (float)sx * sy) / d * 32768);
+}
+

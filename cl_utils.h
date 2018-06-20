@@ -76,9 +76,16 @@ namespace cl
 	public:
 		inline const cv::Size &size() const { return size_; }
 		inline void fill(T value = 0) { set_->queue.enqueueFillBuffer(*this, value, 0, size_); }
+		void read(std::vector<T> &out, size_t count = 0, bool blocking = true) {
+			out.resize(count ? count : (size_ / sizeof(T)));
+			set_->queue.enqueueReadBuffer(*this, blocking, 0, count ? count * sizeof(T) : size_, out.data());
+		}
+		void write(const std::vector<T> &in, bool blocking = false) {
+			assert(in.size() * sizeof(T) < size_);
+			set_->queue.enqueueWriteBuffer(*this, blocking, 0, in.size() * sizeof(T), in.data());
+		}
 
-		BufferT<T>& operator = (const BufferT<T> &buf)
-		{
+		BufferT<T>& operator = (const BufferT<T> &buf) {
 			Buffer::operator=(buf);
 			size_ = buf.size_;
 			set_ = buf.set_;
