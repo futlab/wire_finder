@@ -234,10 +234,10 @@ void HoughLinesV::filterLines(std::vector<LineV>& lines)
 	for (const auto &s : lines) {
 		bool found = false;
 		for (auto &r : result)
-			if (abs(r.b - s.b) < 3) {
+            if (abs(r.b - s.b) < 4) {
 				int re = r.b + ((int(r.a) * height) >> 15);
 				int se = s.b + ((int(r.a) * height) >> 15);
-				if (abs(re - se) < 3) {
+                if (abs(re - se) < 4) {
 					found = true;
 					if (r.value < s.value)
 						r = s;

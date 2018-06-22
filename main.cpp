@@ -4,6 +4,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <math.h>
+#include <set>
 #include "hough.h"
 #include "cmplines.h"
 
@@ -113,7 +114,7 @@ public:
 		{
 			cv::Mat acc = hlv.accumulator.read();
 			cv::Mat accRect = hlv.rectifyAccumulatorRef<ushort>(acc, size_.height);
-			hlv.collectLinesRef<ushort, 4>(accRect, 500, lines, size_.height);
+            hlv.collectLinesRef<ushort, 4>(accRect, 350, lines, size_.height);
 
 			double min, max;
 			cv::minMaxLoc(accRect, &min, &max);
@@ -124,7 +125,10 @@ public:
 			hlv.filterLines(lines);
 			cv::imshow(name + " diRes", hlv.source_.readScaled());
 
-
+            std::sort(lines.begin(), lines.end(), [](const auto & a, const auto & b) -> bool
+            {
+                return a.b > b.b;
+            });
 			return hlv.drawLines(src, lines);
 		}
 
@@ -183,22 +187,95 @@ void onMouseLC(int event, int x, int y, int, void*)
 	lcy = y;
 }
 
-std::pair<int, int> drawLineCompare(std::vector<uint> &result, int left, int right)
+inline int disparity(const LineV & left, const LineV & right)
+{
+    int
+            lc = left.b + ((int(left.a) * 720) >> 15),
+            rc = right.b + ((int(right.a) * 720) >> 15);
+
+    return ((lc - rc) + (left.b - right.b)) / 2;
+}
+
+//void maximize std::vector<uint> &result, const std::vector<LineV> & left, const std::vector<LineV> & right
+
+std::set<pair<int, int>> findGoodPairs(std::vector<uint> &cmp, const std::vector<LineV> & left, const std::vector<LineV> & right)
+{
+    std::set<pair<int, int>> good;
+    int ls = left.size(), rs = right.size();
+    assert(cmp.size() == ls * rs);
+    if (cmp.empty()) return good;
+    std::vector<bool> usedLeft, usedRight;
+    usedLeft.resize(ls, false);
+    usedRight.resize(rs, false);
+
+    do {
+        uint m = 600000;
+        pair<int, int> p = std::make_pair(-1, -1);
+        for (int l = 0; l < ls; ++l) if (!usedLeft[l])
+            for (int r = 0; r < rs; ++r) if (!usedRight[r])
+                if (uint v = cmp[r + l * rs]) {
+                    if (v <= m) {
+                        m = v;
+                        p = std::make_pair(l, r);
+                    }
+                }
+        if (p.first >= 0) {
+            good.insert(p);
+            usedLeft[p.first] = true;
+            usedRight[p.second] = true;
+        } else break;
+    } while(true);
+
+
+    return good;
+}
+
+std::pair<int, int> findMaxDisparity(const std::vector<LineV> & left, const std::vector<LineV> & right, const std::set<pair<int, int>> &good)
+{
+    std::pair<int, int> result = std::make_pair(-1, -1);
+    uint m = 0;
+    for (auto &g : good) {
+        uint d = disparity(left[g.first], right[g.second]);
+        if (d > m) {
+            m = d;
+            result = g;
+        }
+    }
+    return result;
+}
+
+std::pair<int, int> drawLineCompare(std::vector<uint> &result, int left, int right, const std::set<pair<int, int>> &good)
 {
 	if (!result.size()) return std::make_pair(-1, -1);
 	assert(result.size() == left * right);
-	cv::Mat out(cv::Size(right, left), CV_32S, result.data());
+    auto copy = result;
+    uint m = 0;
+    for (auto &r : result) if (m < r) m = r;
+    for (auto &r : result) if (r) r = m - r;
+
+    cv::Mat out(cv::Size(right, left), CV_32S, result.data());
 	double min, max;
 	cv::minMaxLoc(out, &min, &max);
-	out.convertTo(out, CV_8U, 255 / max);
-	cv::Mat res;
-	cv::resize(out, res, cv::Size(400, 400), 0, 0, cv::INTER_NEAREST);
+    cv::Mat res;
+    out.convertTo(res, CV_8U, 255 / max);
+    cv::cvtColor(res, res, CV_GRAY2RGB);
+    for (auto &g : good) {
+        res.at<cv::Vec3b>(g.first, g.second)[0] = 0;
+    }
+
+    cv::resize(res, res, cv::Size(400, 400), 0, 0, cv::INTER_NEAREST);
 	std::pair<int, int> p = std::make_pair(-1, -1);
 	if (lcx >= 0 && lcy >= 0) {
-		cv::drawMarker(out, cv::Point(lcx, lcy), cv::Scalar(0), cv::MARKER_CROSS);
+        cv::drawMarker(out, cv::Point(lcx, lcy), cv::Scalar(0), cv::MARKER_CROSS);
 		p.first = lcy * left / 400;
 		p.second = lcx * right / 400;
 	}
+    for (int l = 0; l < left; ++l)
+        for (int r = 0; r < right; ++r)
+            if(uint c = copy[r + l * right]) {
+                cv::putText(res, std::to_string(c), cv::Point(400 * r / right + 5, 400 * l / left + 10), cv::FONT_HERSHEY_PLAIN, 0.7, cv::Scalar(0));
+            }
+
 	cv::imshow("Compare", res);
 	cv::setMouseCallback("Compare", &onMouseLC, 0);
 	return p;
@@ -210,15 +287,19 @@ void zedWork(CLFilter &f)
 
     sl::InitParameters initParams;
     std::string svoFileName =
-		"d:/bag/svo/mrsk2.svo";
-		//"/home/igor/svo/mrsk/mrsk2.svo";
+        //"d:/bag/svo/mrsk2.svo";
+        "/home/igor/svo/mrsk/mrsk2.svo";
         //"/home/igor/svo/test2.svo";
     initParams.svo_input_filename = sl::String(svoFileName.c_str());
     initParams.sdk_verbose = true; // Enable the verbose mode
     initParams.depth_mode = sl::DEPTH_MODE_PERFORMANCE; // Set the depth mode to performance (fastest)
+    initParams.coordinate_units = sl::UNIT_METER;
+    initParams.coordinate_system = sl::COORDINATE_SYSTEM_RIGHT_HANDED_Z_UP;
 
     // Open the camera
     sl::ERROR_CODE err = zed.open(initParams);
+
+    zed.enableTracking();
 
     sl::Mat slLeft(zed.getResolution(), sl::MAT_TYPE_8U_C4, sl::MEM_CPU), slRight(zed.getResolution(), sl::MAT_TYPE_8U_C4, sl::MEM_CPU);
     cv::Mat left = slMat2cvMat(slLeft), right = slMat2cvMat(slRight);
@@ -229,7 +310,7 @@ void zedWork(CLFilter &f)
 	lc.initialize(leftMatBuf, rightMatBuf);
     while(true) {
         if (!pause) {
-            if (zed.grab(sl::RuntimeParameters(sl::SENSING_MODE_STANDARD, true, false)) == sl::SUCCESS) {
+            if (zed.grab(sl::RuntimeParameters(sl::SENSING_MODE_STANDARD, false, false)) == sl::SUCCESS) {
                 zed.retrieveImage(slLeft, sl::VIEW_LEFT, sl::MEM_CPU);
                 zed.retrieveImage(slRight, sl::VIEW_RIGHT, sl::MEM_CPU);
                 cv::blur(left, left, cv::Size(3, 3));
@@ -248,13 +329,26 @@ void zedWork(CLFilter &f)
             cv::line(right_, cv::Point(x1, 0), cv::Point(x2, size.height - 1), cv::Scalar(255, 0, 0));
         }
 		cv::Mat outL = f.process5(left, "left", leftLines);
-		cv::Mat outR = f.process5(right, "right", rightLines);
+        cv::Mat outR = f.process5(right, "right", rightLines);
+
 		leftMatBuf.write(left);
 		rightMatBuf.write(right);
 		std::vector<uint> result;
 		lc.compare(leftLines, rightLines, result);
-		auto p = drawLineCompare(result, leftLines.size(), rightLines.size());
-		if (p.first >= 0)
+        auto good = findGoodPairs(result, leftLines, rightLines);
+        auto p = drawLineCompare(result, leftLines.size(), rightLines.size(), good);
+        auto best = findMaxDisparity(leftLines, rightLines, good);
+        if (best.first >= 0)
+        {
+            LineV& l = leftLines[best.first];
+            cv::line(outL, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * outL.rows) >> 15)), outL.rows - 1), cv::Scalar(0, 200, 0), 3);
+        }
+        if (best.second >= 0)
+        {
+            LineV& l = rightLines[best.second];
+            cv::line(outR, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * outR.rows) >> 15)), outR.rows - 1), cv::Scalar(0, 200, 0), 3);
+        }
+        if (p.first >= 0)
 		{
 			LineV& l = leftLines[p.first];
 			cv::line(outL, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * outL.rows) >> 15)), outL.rows - 1), cv::Scalar(0, 0, 200), 3);
@@ -264,7 +358,8 @@ void zedWork(CLFilter &f)
 			LineV& l = rightLines[p.second];
 			cv::line(outR, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * outR.rows) >> 15)), outR.rows - 1), cv::Scalar(0, 0, 200), 3);
 		}
-		//outL = leftMatBuf.read();
+
+        //outL = leftMatBuf.read();
 		//outR = rightMatBuf.read();
 
 		cv::imshow("Left", outL);

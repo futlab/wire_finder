@@ -97,7 +97,7 @@ namespace cl
 		}
 	}
 
-	inline constexpr uint cvTypeSize(int type)
+    inline uint cvTypeSize(int type)
 	{
 		switch (type) {
 		case CV_8U: return 1;
