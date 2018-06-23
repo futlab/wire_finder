@@ -11,19 +11,23 @@ find_package(OpenCV REQUIRED)
 find_package(ZED 2 REQUIRED)
 find_package(CUDA ${ZED_CUDA_VERSION} EXACT REQUIRED)
 
+find_package(Eigen3 REQUIRED)
+
 include_directories(
 	${OpenCL_INCLUDE_DIRS}
 	${OpenCV_INCLUDE_DIRS}
         ${ZED_INCLUDE_DIRS}
         ${CUDA_INCLUDE_DIRS}
+        ${Eigen3_INCLUDE_DIRS}
 )
 
 link_directories(${OpenCL_LIBRARY} ${OpenCV_LIBRARY})
 
 add_executable(${PROJECT_NAME}
     main.cpp		defs.h
-    hough.cpp       hough.h
-	cmplines.cpp	cmplines.h
+    hough.cpp           hough.h
+    cmplines.cpp	cmplines.h
+    linepool.cpp        linepool.h
     hough_test.cpp
     cl_utils0.cpp   cl_utils0.h
     cl_utils.cpp    cl_utils.h
