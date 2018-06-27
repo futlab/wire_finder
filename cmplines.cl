@@ -23,6 +23,11 @@
 #define MAX_DA (32768 / 4)
 #endif
 
+#ifndef MAX_DA_ADJ
+#define MAX_DA_ADJ (32768 / 16)
+#endif
+
+
 typedef struct __attribute__((packed)) _Line
 {
 	ushort value, width;
@@ -99,6 +104,39 @@ kernel void compareLinesStereo(global uchar4 *left, global uchar4 *right, const 
 			dC = leftC - rightC;
 
 		if (abs_diff(leftA, rightA) < MAX_DA && dB >= MIN_DISP && dB <= MAX_DISP && dC >= MIN_DISP && dC <= MAX_DISP)
+			r = compare(localLine, right, rightA, rightB);
+
+		*(result++) = r;
+	}
+}
+
+// Pixel format: RGBA, where A is mask
+kernel void compareLinesAdjacent(global uchar4 *left, global uchar4 *right, const global Line *leftLines, const global Line *rightLines, uint rightCount, uint twist, global uint *result)
+{
+	local uchar4 localLine[HEIGHT * CMP_D * 2];
+	const uint id = get_group_id(0);
+	const global Line *leftLine = leftLines + id, *rightLine = rightLines;
+	int
+		leftA = leftLine->a,
+		leftB = leftLine->b;
+
+	load(localLine, left, leftA, leftB);
+
+	// Turn tg leftA by twist
+	int div = 0x40000000 - leftA * twist;
+	if (!div) return;
+	leftA = ((leftA + twist) << 15) / (div >> 15);
+	if (abs(leftA) > 32768) return
+
+	barrier(CLK_LOCAL_MEM_FENCE);
+	result += id * rightCount;
+	for (uint rc = 0; rc < rightCount; ++rc, ++rightLine) {
+		uint r = 0;
+		int
+			rightA = rightLine->a,
+			rightB = rightLine->b;
+
+		if (abs_diff(leftA, rightA) < MAX_DA_ADJ)
 			r = compare(localLine, right, rightA, rightB);
 
 		*(result++) = r;

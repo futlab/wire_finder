@@ -3,7 +3,7 @@
 using namespace std;
 
 LinesCompare::LinesCompare(cl::Set * set) : set_(set),
-cCompareLinesStereo_("compareLines")
+cCompareLinesStereo_("compareStereo"), cCompareLinesAdjacent_("compareAdjacent")
 {
 	/*bytesAlign_ = 0;
 	for (auto &d : set->devices) {
@@ -22,6 +22,7 @@ void LinesCompare::loadKernels(const string &fileName, const vector<pair<string,
 	Program program = set_->buildProgram(fileName, defines);
 
 	kCompareLinesStereo_ = Kernel(program, "compareLinesStereo");
+	kCompareLinesAdjacent_ = Kernel(program, "compareLinesAdjacent");
 
 	size_t groupSize = kCompareLinesStereo_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
 	localSize_ = NDRange(groupSize);
@@ -46,6 +47,12 @@ void LinesCompare::initialize(cl::MatBuffer & left, cl::MatBuffer & right)
 	kCompareLinesStereo_.setArg(2, leftLines_);
 	kCompareLinesStereo_.setArg(3, rightLines_);
 	kCompareLinesStereo_.setArg(5, result_);
+
+	kCompareLinesAdjacent_.setArg(0, left);
+	kCompareLinesAdjacent_.setArg(1, right);
+	kCompareLinesAdjacent_.setArg(2, leftLines_);
+	kCompareLinesAdjacent_.setArg(3, rightLines_);
+	kCompareLinesAdjacent_.setArg(6, result_);
 }
 
 void LinesCompare::stereoCompare(const vector<LineV> &left, const vector<LineV> &right, vector<uint> &result)
@@ -68,5 +75,35 @@ void LinesCompare::stereoCompare(const vector<LineV> &left, const vector<LineV> 
 	set_->queue.enqueueNDRangeKernel(kCompareLinesStereo_, cl::NDRange(), cl::NDRange(localSize_[0] * leftCount), localSize_, nullptr, &e);
 	cCompareLinesStereo_.inc(e);
 	result_.read(result, leftCount * rightCount);
+}
+
+void LinesCompare::adjacentCompare(const std::vector<LineV>& first, const std::vector<LineV>& second, float twist, std::vector<uint>& result)
+{
+	size_t firstCount = first.size(), secondCount = second.size();
+	if (!firstCount || !secondCount)
+		return;
+	if (firstCount * secondCount > 32 * 32) {
+		if (firstCount > 32) firstCount = 32;
+		if (secondCount > 32) secondCount = 32;
+	}
+	if (firstCount > 64) firstCount = 64;
+	if (secondCount > 64) secondCount = 64;
+
+	kCompareLinesAdjacent_.setArg(4, uint(secondCount));
+	kCompareLinesAdjacent_.setArg(5, cl_float(twist));
+
+	leftLines_.write(first, firstCount);
+	rightLines_.write(second, secondCount);
+	cl::Event e;
+	set_->queue.enqueueNDRangeKernel(kCompareLinesAdjacent_, cl::NDRange(), cl::NDRange(localSize_[0] * firstCount), localSize_, nullptr, &e);
+	cCompareLinesStereo_.inc(e);
+	result_.read(result, firstCount * secondCount);
+}
+
+void LinesCompare::adjacentCompare(cl::MatBuffer & firstImage, cl::MatBuffer & secondImage, const std::vector<LineV>& first, const std::vector<LineV>& second, float twist, std::vector<uint>& result)
+{
+	kCompareLinesAdjacent_.setArg(0, firstImage);
+	kCompareLinesAdjacent_.setArg(1, secondImage);
+	adjacentCompare(first, second, twist, result);
 }
 
