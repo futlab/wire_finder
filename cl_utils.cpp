@@ -163,4 +163,12 @@ namespace cl
 		set_->queue.enqueueWriteBuffer(*this, blocking, 0, size_.area() * cvTypeSize(type_), source.data);
 	}
 
+	void MatBuffer::copyTo(MatBuffer & buf) const
+	{
+		if (!buf.set_) buf.set_ = this->set_;
+		assert(buf.set_ == this->set_);
+		if (buf.size_ != this->size_ || buf.type_ != this->type_)
+			buf = MatBuffer(set_, this->size_, this->type_);
+		set_->queue.enqueueCopyBuffer(*this, buf, 0, 0, size_.area() * cvTypeSize(type_));
+	}
 }

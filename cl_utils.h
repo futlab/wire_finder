@@ -54,7 +54,8 @@ namespace cl
 		Set *set_;
 	public:
 		inline const cv::Size &size() const { return size_; }
-		inline const int type() const { return type_; }
+		inline int type() const { return type_; }
+		inline bool empty() const { return size_.empty(); }
 		MatBuffer() {}
 		MatBuffer(const MatBuffer &source);
 		MatBuffer(Set *set, cv::Size size, int type = CV_8U, cl_mem_flags flags = CL_MEM_READ_WRITE);
@@ -65,6 +66,7 @@ namespace cl
 		cv::Mat readScaled();
 		void fill(uint value = 0);
 		void write(const cv::Mat &source, bool blocking = false);
+		void copyTo(MatBuffer &buf) const;
 	};
 
 	template<typename T>
