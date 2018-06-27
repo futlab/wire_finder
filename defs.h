@@ -2,6 +2,6 @@
 
 struct LineV
 {
-	ushort value, width;
+	unsigned short value, width;
 	short a, b;
 };

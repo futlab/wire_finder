@@ -10,6 +10,8 @@
 
 #include "cl_utils0.h"
 
+#include "linepool.h"
+
 // ZED includes
 #include <sl_zed/Camera.hpp>
 
@@ -198,9 +200,9 @@ inline int disparity(const LineV & left, const LineV & right)
 
 //void maximize std::vector<uint> &result, const std::vector<LineV> & left, const std::vector<LineV> & right
 
-std::set<pair<int, int>> findGoodPairs(std::vector<uint> &cmp, const std::vector<LineV> & left, const std::vector<LineV> & right)
+std::vector<pair<int, int>> findGoodPairs(std::vector<uint> &cmp, const std::vector<LineV> & left, const std::vector<LineV> & right)
 {
-    std::set<pair<int, int>> good;
+    std::vector<pair<int, int>> good;
     int ls = left.size(), rs = right.size();
     assert(cmp.size() == ls * rs);
     if (cmp.empty()) return good;
@@ -220,7 +222,7 @@ std::set<pair<int, int>> findGoodPairs(std::vector<uint> &cmp, const std::vector
                     }
                 }
         if (p.first >= 0) {
-            good.insert(p);
+            good.push_back(p);
             usedLeft[p.first] = true;
             usedRight[p.second] = true;
         } else break;
@@ -230,7 +232,7 @@ std::set<pair<int, int>> findGoodPairs(std::vector<uint> &cmp, const std::vector
     return good;
 }
 
-std::pair<int, int> findMaxDisparity(const std::vector<LineV> & left, const std::vector<LineV> & right, const std::set<pair<int, int>> &good)
+std::pair<int, int> findMaxDisparity(const std::vector<LineV> & left, const std::vector<LineV> & right, const std::vector<pair<int, int>> &good)
 {
     std::pair<int, int> result = std::make_pair(-1, -1);
     uint m = 0;
@@ -244,7 +246,7 @@ std::pair<int, int> findMaxDisparity(const std::vector<LineV> & left, const std:
     return result;
 }
 
-std::pair<int, int> drawLineCompare(std::vector<uint> &result, int left, int right, const std::set<pair<int, int>> &good)
+std::pair<int, int> drawLineCompare(std::vector<uint> &result, int left, int right, const std::vector<pair<int, int>> &good)
 {
 	if (!result.size()) return std::make_pair(-1, -1);
 	assert(result.size() == left * right);
@@ -300,6 +302,7 @@ void zedWork(CLFilter &f)
     sl::ERROR_CODE err = zed.open(initParams);
 
     zed.enableTracking();
+	LinePool pool;
 
     sl::Mat slLeft(zed.getResolution(), sl::MAT_TYPE_8U_C4, sl::MEM_CPU), slRight(zed.getResolution(), sl::MAT_TYPE_8U_C4, sl::MEM_CPU);
     cv::Mat left = slMat2cvMat(slLeft), right = slMat2cvMat(slRight);
@@ -309,12 +312,17 @@ void zedWork(CLFilter &f)
 	cl::MatBuffer leftMatBuf(f.set_, cv::Size(1280, 720), CV_8UC4), rightMatBuf(f.set_, cv::Size(1280, 720), CV_8UC4);
 	lc.initialize(leftMatBuf, rightMatBuf);
     while(true) {
+		sl::CalibrationParameters cp;
         if (!pause) {
             if (zed.grab(sl::RuntimeParameters(sl::SENSING_MODE_STANDARD, false, false)) == sl::SUCCESS) {
                 zed.retrieveImage(slLeft, sl::VIEW_LEFT, sl::MEM_CPU);
                 zed.retrieveImage(slRight, sl::VIEW_RIGHT, sl::MEM_CPU);
                 cv::blur(left, left, cv::Size(3, 3));
                 cv::blur(right, right, cv::Size(3, 3));
+
+				auto ci = zed.getCameraInformation();
+				cp = ci.calibration_parameters;
+				pool.setCameraParams(cp.T.x, cp.left_cam.fx, cp.left_cam.cx, cp.left_cam.fy, cp.left_cam.cy, cp.right_cam.fx, cp.right_cam.cx, cp.right_cam.fy, cp.right_cam.cy);
             }
         }
 
@@ -334,7 +342,9 @@ void zedWork(CLFilter &f)
 		leftMatBuf.write(left);
 		rightMatBuf.write(right);
 		std::vector<uint> result;
-		lc.compare(leftLines, rightLines, result);
+		lc.stereoCompare(leftLines, rightLines, result);
+		pool.onLines(leftLines, rightLines, result);
+		pool.show(cp.left_cam.h_fov, cp.right_cam.h_fov);
         auto good = findGoodPairs(result, leftLines, rightLines);
         auto p = drawLineCompare(result, leftLines.size(), rightLines.size(), good);
         auto best = findMaxDisparity(leftLines, rightLines, good);

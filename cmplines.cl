@@ -74,7 +74,7 @@ uint compare(local uchar4 *buf, global uchar4 *image, int a, int b)
 }
 
 // Pixel format: RGBA, where A is mask
-kernel void compareLines(global uchar4 *left, global uchar4 *right, const global Line *leftLines, const global Line *rightLines, uint rightCount, global uint *result)
+kernel void compareLinesStereo(global uchar4 *left, global uchar4 *right, const global Line *leftLines, const global Line *rightLines, uint rightCount, global uint *result)
 {
 	local uchar4 localLine[HEIGHT * CMP_D * 2];
 	const uint id = get_group_id(0);

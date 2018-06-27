@@ -3,7 +3,7 @@
 using namespace std;
 
 LinesCompare::LinesCompare(cl::Set * set) : set_(set),
-cCompareLines_("compareLines")
+cCompareLinesStereo_("compareLines")
 {
 	/*bytesAlign_ = 0;
 	for (auto &d : set->devices) {
@@ -21,9 +21,9 @@ void LinesCompare::loadKernels(const string &fileName, const vector<pair<string,
 		defines += "#define " + p.first + " " + std::to_string(p.second) + "\n";
 	Program program = set_->buildProgram(fileName, defines);
 
-	kCompareLines_ = Kernel(program, "compareLines");
+	kCompareLinesStereo_ = Kernel(program, "compareLinesStereo");
 
-	size_t groupSize = kCompareLines_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
+	size_t groupSize = kCompareLinesStereo_.getWorkGroupInfo<CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE>(set_->devices[0]);
 	localSize_ = NDRange(groupSize);
 }
 
@@ -41,14 +41,14 @@ void LinesCompare::initialize(cl::MatBuffer & left, cl::MatBuffer & right)
 	rightLines_ = BufferT<LineV>(set_, 64);
 	result_		= BufferT<uint>(set_, 32 * 32);
 
-	kCompareLines_.setArg(0, left);
-	kCompareLines_.setArg(1, right);
-	kCompareLines_.setArg(2, leftLines_);
-	kCompareLines_.setArg(3, rightLines_);
-	kCompareLines_.setArg(5, result_);
+	kCompareLinesStereo_.setArg(0, left);
+	kCompareLinesStereo_.setArg(1, right);
+	kCompareLinesStereo_.setArg(2, leftLines_);
+	kCompareLinesStereo_.setArg(3, rightLines_);
+	kCompareLinesStereo_.setArg(5, result_);
 }
 
-void LinesCompare::compare(const vector<LineV> &left, const vector<LineV> &right, vector<uint> &result)
+void LinesCompare::stereoCompare(const vector<LineV> &left, const vector<LineV> &right, vector<uint> &result)
 {
 	size_t leftCount = left.size(), rightCount = right.size();
 	if (!leftCount || !rightCount)
@@ -60,13 +60,13 @@ void LinesCompare::compare(const vector<LineV> &left, const vector<LineV> &right
 	if (leftCount > 64) leftCount = 64;
 	if (rightCount > 64) rightCount = 64;
 
-	kCompareLines_.setArg(4, uint(rightCount));
+	kCompareLinesStereo_.setArg(4, uint(rightCount));
 
 	leftLines_.write(left, leftCount);
 	rightLines_.write(right, rightCount);
 	cl::Event e;
-	set_->queue.enqueueNDRangeKernel(kCompareLines_, cl::NDRange(), cl::NDRange(localSize_[0] * leftCount), localSize_, nullptr, &e);
-	cCompareLines_.inc(e);
+	set_->queue.enqueueNDRangeKernel(kCompareLinesStereo_, cl::NDRange(), cl::NDRange(localSize_[0] * leftCount), localSize_, nullptr, &e);
+	cCompareLinesStereo_.inc(e);
 	result_.read(result, leftCount * rightCount);
 }
 
