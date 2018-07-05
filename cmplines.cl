@@ -93,7 +93,7 @@ kernel void compareLinesStereo(global uchar4 *left, global uchar4 *right, const 
 	barrier(CLK_LOCAL_MEM_FENCE);
 	result += id * rightCount;
 	for (uint rc = 0; rc < rightCount; ++rc, ++rightLine) {
-		uint r = 0;
+		uint r = 0xFFFFFFFF;
 		int 
 			rightA = rightLine->a, 
 			rightB = rightLine->b,
@@ -111,7 +111,7 @@ kernel void compareLinesStereo(global uchar4 *left, global uchar4 *right, const 
 }
 
 // Pixel format: RGBA, where A is mask
-kernel void compareLinesAdjacent(global uchar4 *left, global uchar4 *right, const global Line *leftLines, const global Line *rightLines, uint rightCount, uint twist, global uint *result)
+kernel void compareLinesAdjacent(global uchar4 *left, global uchar4 *right, const global Line *leftLines, const global Line *rightLines, uint rightCount, int twist, global uint *result)
 {
 	local uchar4 localLine[HEIGHT * CMP_D * 2];
 	const uint id = get_group_id(0);
@@ -131,7 +131,7 @@ kernel void compareLinesAdjacent(global uchar4 *left, global uchar4 *right, cons
 	barrier(CLK_LOCAL_MEM_FENCE);
 	result += id * rightCount;
 	for (uint rc = 0; rc < rightCount; ++rc, ++rightLine) {
-		uint r = 0;
+		uint r = 0xFFFFFFFF;
 		int
 			rightA = rightLine->a,
 			rightB = rightLine->b;

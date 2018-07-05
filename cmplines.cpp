@@ -90,7 +90,8 @@ void LinesCompare::adjacentCompare(const std::vector<LineV>& first, const std::v
 	if (secondCount > 64) secondCount = 64;
 
 	kCompareLinesAdjacent_.setArg(4, uint(secondCount));
-	kCompareLinesAdjacent_.setArg(5, cl_float(twist));
+	cl_int twistInt = (cl_int)(tan(twist) * 32768);
+	kCompareLinesAdjacent_.setArg(5, twistInt);
 
 	leftLines_.write(first, firstCount);
 	rightLines_.write(second, secondCount);
