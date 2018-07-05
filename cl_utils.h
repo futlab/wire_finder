@@ -56,7 +56,7 @@ namespace cl
 		inline const cv::Size &size() const { return size_; }
 		inline int type() const { return type_; }
 		inline bool empty() const { return size_.empty(); }
-		MatBuffer() {}
+		MatBuffer() : type_(0), set_(nullptr) {}
 		MatBuffer(const MatBuffer &source);
 		MatBuffer(Set *set, cv::Size size, int type = CV_8U, cl_mem_flags flags = CL_MEM_READ_WRITE);
 		MatBuffer& operator = (const MatBuffer &buf);
@@ -95,7 +95,7 @@ namespace cl
 			return *this;
 		}
 
-		BufferT(size_t count = 1) : size_(count * sizeof(T)) {}
+		BufferT(size_t count = 1) : size_(count * sizeof(T)), set_(nullptr) {}
 		BufferT(Set *set, size_t count = 1, cl_mem_flags flags = CL_MEM_READ_WRITE) :
 			Buffer(set->context, flags, count * sizeof(T)), size_(count * sizeof(T)), set_(set)
 		{}
