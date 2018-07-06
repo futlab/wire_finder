@@ -43,4 +43,9 @@ public:
 		this->rfy = rfy;
 		this->rcy = rcy;
 	}
+	void predict(const Quaternion<real> &r, const Vector3 &t, Vector3 &v)
+	{
+		auto irm = r.inverse().toRotationMatrix();
+		v = irm * (v - t);
+	}
 };
