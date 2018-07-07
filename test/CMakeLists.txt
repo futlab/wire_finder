@@ -29,6 +29,7 @@ add_executable(wf-test
 	../kalmanline.h		kalmanline_test.cpp
     ../cl_utils.cpp    ../cl_utils.h
     ../cl2.hpp
+	../defs.h
 )
 
 target_link_libraries(${PROJECT_NAME}

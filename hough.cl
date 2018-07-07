@@ -354,8 +354,8 @@ typedef struct __attribute__((packed)) _Line
 {
 	ushort value, width;
 	short a, b;
+	float fa, fb;
 } Line;
-
 
 // Global size: accumulator width; local size: any;
 __kernel void collectLines(__global const ACC_TYPE *acc, uint threshold, uint step, __global volatile int *linesCount, __global Line *lines)
@@ -496,8 +496,8 @@ __kernel void refineLines(__global const uchar *source, __global Line *lines)
 		printf("Too small d!\n");
 		return;
 	}
-	line->b = (short)((sy2 * sx - sy * sxy) / d);
-	line->a = (short)(((float)maxN * sxy - (float)sx * sy) / d * 32768);
+	line->fb = (sy2 * sx - sy * sxy) / d;
+	line->fa = ((float)maxN * sxy - (float)sx * sy) / d;
 	line->width = maxX;
 }
 

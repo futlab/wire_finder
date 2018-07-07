@@ -234,10 +234,10 @@ void HoughLinesV::filterLines(std::vector<LineV>& lines)
 	for (const auto &s : lines) {
 		bool found = false;
 		for (auto &r : result)
-            if (abs(r.b - s.b) < 4) {
-				int re = r.b + ((int(r.a) * height) >> 15);
-				int se = s.b + ((int(r.a) * height) >> 15);
-                if (abs(re - se) < 4) {
+            if (fabs(r.fb - s.fb) < 4) {
+				float re = r.fb + r.fa * height;
+				float se = s.fb + r.fa * height;
+                if (fabs(re - se) < 4) {
 					found = true;
 					if (r.value < s.value)
 						r = s;
@@ -281,7 +281,7 @@ cv::Mat HoughLinesV::drawLines(const cv::Mat &src, const std::vector<LineV> &lin
 		/*int shift = l.a * (markers.rows - 1) / 127;
 		int b = l.b - shift;
 		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));*/
-		cv::line(markers, cv::Point(l.b, 0), cv::Point(l.b + (((int(l.a) * markers.rows) >> 15)), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+		cv::line(markers, cv::Point((int)l.fb, 0), cv::Point(int(l.fb + l.fa * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
 	}
 	//cv::addWeighted(out, 1, markers, 0.9, 0, out);
 	return out;
