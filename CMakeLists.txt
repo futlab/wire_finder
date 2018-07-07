@@ -27,7 +27,9 @@ add_executable(${PROJECT_NAME}
     main.cpp		defs.h
     hough.cpp           hough.h
     cmplines.cpp	cmplines.h
-    linepool.cpp        linepool.h
+    #linepool.cpp        
+	linepool.h
+	cameramodel.h
     hough_test.cpp
     cl_utils0.cpp   cl_utils0.h
     cl_utils.cpp    cl_utils.h
@@ -38,6 +40,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCL_LIBRARY}
     ${OpenCV_LIBS}
     ${ZED_LIBRARIES}
+	Eigen3::Eigen
 )
 
 add_executable(info
