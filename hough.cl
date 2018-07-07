@@ -496,8 +496,14 @@ __kernel void refineLines(__global const uchar *source, __global Line *lines)
 		printf("Too small d!\n");
 		return;
 	}
-	line->fb = (sy2 * sx - sy * sxy) / d;
-	line->fa = ((float)maxN * sxy - (float)sx * sy) / d;
+	float a = ((float)maxN * sxy - (float)sx * sy) / d;
+	line->a = (short)(a * 32768);
+	line->fa = a;
+
+	float b = (sy2 * sx - sy * sxy) / d;
+	line->b = (short)round(b);
+	line->fb = b + a * (HEIGHT / 2);
+
 	line->width = maxX;
 }
 

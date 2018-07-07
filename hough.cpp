@@ -281,7 +281,8 @@ cv::Mat HoughLinesV::drawLines(const cv::Mat &src, const std::vector<LineV> &lin
 		/*int shift = l.a * (markers.rows - 1) / 127;
 		int b = l.b - shift;
 		cv::line(markers, cv::Point(b, 0), cv::Point(b + int((2.0 * l.a / 127. - 1.0) * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));*/
-		cv::line(markers, cv::Point((int)l.fb, 0), cv::Point(int(l.fb + l.fa * markers.rows), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
+		float d = l.fa * markers.rows / 2;
+		cv::line(markers, cv::Point(int(l.fb - d), 0), cv::Point(int(l.fb + d), markers.rows - 1), cv::Scalar(255 * l.value / m, 0, 0, 150));
 	}
 	//cv::addWeighted(out, 1, markers, 0.9, 0, out);
 	return out;

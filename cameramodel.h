@@ -48,4 +48,20 @@ public:
 		auto irm = r.inverse().toRotationMatrix();
 		v = irm * (v - t);
 	}
+	template<bool right>
+	void projectLine(real &a, real &b, const Vector2 &position, const Vector2 &direction)
+	{
+		b = right ?
+			(position[0] - baseline) / position[1] * rfx + rcx :
+			 position[0]             / position[1] * lfx + lcx;
+		auto end = position + direction;
+		
+		real xd = right ?
+			rcx + (end[0] - baseline) / end[1] * rfx :
+			lcx +  end[0]             / end[1] * lfx;
+		real yd = right ?
+			rcy + 1 / end[1] * rfy :
+			lcy + 1 / end[1] * lfy;
+		a = (xd - b) / yd;
+	}
 };
