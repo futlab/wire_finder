@@ -3,20 +3,8 @@
 #include <iostream>
 #include <gtest/gtest.h>
 
+#include "gtest_utils.h"
 #include "../kalmanline.h"
-
-template<typename T, size_t rows, size_t cols>
-testing::AssertionResult MatrixMatch(const Matrix<T, rows, cols> &expected, const Matrix<T, rows, cols> &actual, T eps)
-{
-	for (size_t i = 0; i < rows; i++)
-		for (size_t j = 0; j < cols; j++) {
-			T e = expected(i, j), a = actual(i, j);
-			if (abs(e - a) >= eps) {
-				return ::testing::AssertionFailure() << "expected[" << i << ", " << j << "] (" << e << ") != actual[" << i << ", " << j << "] (" << a << ")";
-			}
-		}
-	return ::testing::AssertionSuccess();
-}
 
 TEST(KalmanLineTest, predict)
 {

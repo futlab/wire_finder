@@ -21,12 +21,13 @@ include_directories(
 link_directories(${OpenCL_LIBRARY} ${OpenCV_LIBRARY})
 
 add_executable(wf-test
-    test.cpp
+    test.cpp		   
+	gtest_utils.h
+	cameramodel_test.cpp	../cameramodel.h
+	kalmanline_test.cpp		../kalmanline.h
     ../hough.cpp       ../hough.h
-    ../hough_test.cpp
-	../cameramodel.h
+    ../hough_test.cpp	
 	../linepool_test.cpp ../linepool.h
-	../kalmanline.h		kalmanline_test.cpp
     ../cl_utils.cpp    ../cl_utils.h
     ../cl2.hpp
 	../defs.h

@@ -9,6 +9,7 @@ class CameraModel
 {
 private:
 	real baseline, lfx, lcx, lfy, lcy, rfx, rcx, rfy, rcy;
+	real lfx_fy, rfx_fy;
 public:
 	inline real leftCenterY() { return lcy; }
 	inline real rightCenterY() { return rcy; }
@@ -42,6 +43,8 @@ public:
 		this->rcx = rcx;
 		this->rfy = rfy;
 		this->rcy = rcy;
+		lfx_fy = lfx / lfy;
+		rfx_fy = rfx / rfy;
 	}
 	void predict(const Quaternion<real> &r, const Vector3 &t, Vector3 &v)
 	{
@@ -49,9 +52,9 @@ public:
 		v = irm * (v - t);
 	}
 	template<bool right>
-	void projectLine(real &a, real &b, const Vector2 &position, const Vector2 &direction)
+	void projectLine(Vector2 &line, const Vector2 &position, const Vector2 &direction)
 	{
-		b = right ?
+		real b = right ?
 			(position[0] - baseline) / position[1] * rfx + rcx :
 			 position[0]             / position[1] * lfx + lcx;
 		auto end = position + direction;
@@ -60,7 +63,31 @@ public:
 			rcx + (end[0] - baseline) / end[1] * rfx :
 			lcx +  end[0]             / end[1] * lfx;
 		real yd = (right ? rfy : lfy)  / end[1];
-		a = (xd - b) / yd;
+		line << (xd - b) / yd, b;
+	}
+	template<bool right>
+	void projectLineDiff(Matrix<real, 2, 4> &H, const Vector2 &position, const Vector2 &direction)
+	{
+		const real x = position[0] - (right ? baseline : 0);
+		// db / dx
+		H(1, 0) = (right ? rfx : lfx) / position[1];
+		H(1, 1) = -(right ? rfx : lfx) * x / (position[1] * position[1]);
+		H.block<1, 2>(1, 2) = Matrix<real, 1, 2>::Zero();
+		// da / dx
+		const auto e = position + direction;
+		const real ff = (right ? rfx_fy : lfx_fy);
+		H(0, 0) = -ff * direction[1] / position[1];
+		H(0, 1) = ff * direction[1] * x / (position[1] * position[1]);
+		H(0, 2) = ff;
+		H(0, 3) = -ff * x / position[1];
+	}
+	template<bool right>
+	inline void projectLine(real &a, real &b, const Vector2 &position, const Vector2 &direction) 
+	{ 
+		Vector2 line; 
+		projectLine<right>(line, position, direction);
+		a = line[0];
+		b = line[1];
 	}
 	template<bool right>
 	void projectPoint(Vector2 &out, const Vector3 &point)
