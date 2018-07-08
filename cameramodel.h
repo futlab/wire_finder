@@ -59,9 +59,17 @@ public:
 		real xd = right ?
 			rcx + (end[0] - baseline) / end[1] * rfx :
 			lcx +  end[0]             / end[1] * lfx;
-		real yd = right ?
-			rcy + 1 / end[1] * rfy :
-			lcy + 1 / end[1] * lfy;
+		real yd = (right ? rfy : lfy)  / end[1];
 		a = (xd - b) / yd;
+	}
+	template<bool right>
+	void projectPoint(Vector2 &out, const Vector3 &point)
+	{
+		if (right) out <<
+			rcx + (point[0] - baseline) / point[2] * rfx,
+			rcy + point[1] / point[2] * lfy;
+		else out <<
+			lcx + point[0] / point[2] * lfx,
+			lcy + point[1] / point[2] * lfy;
 	}
 };
