@@ -41,8 +41,8 @@ struct KalmanLine
 	inline void getF(Matrix4 &F, const Matrix<real, 3, 3> &irm, const Vector3 &p, const Vector3 &d) const
 	{
 		Matrix2 irm2; irm2 << irm(0, 0), irm(0, 2), irm(2, 0), irm(2, 2);
-		Matrix<real, 1, 2> irv(irm(1, 0), irm(1, 2));
-		Vector2 d2(d[0], d[2]);
+		const Matrix<real, 1, 2> irv(irm(1, 0), irm(1, 2));
+		const Vector2 d2(d[0], d[2]);
 		const real d1 = d[1];
 		// d pos / d pos
 		F.block<2, 2>(0, 0) = irm2 - direction * irv;
@@ -85,7 +85,7 @@ struct KalmanLine
 		P = F * P * F.transpose();
 		// P += Q;
 	}
-	void correct(const CameraModel<real> &camera, const LineV & left, const LineV & right, unsigned int value)
+	void correct(const CameraModel<real> &camera, const LineV &left, const LineV &right, unsigned int value)
 	{
 		Vector2 pos;
 		// Calculate position
@@ -105,5 +105,54 @@ struct KalmanLine
 		x << position, direction;
 		z << pos, dir;
 
+	}
+	template<bool right>
+	void correct(const CameraModel<real> &camera, const LineV &line, const Matrix2 &R)
+	{
+		// Calculate z and y
+		Vector2 z(line.fa, line.fb), hx;
+		camera.projectLine<right>(hx, position, direction);
+		Vector2 y = z - hx;
+
+		// Calculate H
+		Matrix<real, 2, 4> H;
+		camera.projectLineDiff<right>(H, position, direction);
+
+
+		// Correct
+		auto S = H * P * H.transpose() + R;
+		auto K = P * H.transpose() * S.inverse();
+		auto dx = K * y;
+		position += dx.block<2, 1>(0, 0);
+		direction += dx.block<2, 1>(2, 0);
+		P = (Matrix4::Identity() - K * H) * P;
+	}
+	void correct(const CameraModel<real> &camera, const LineV &left, const LineV &right, const Matrix2 &R)
+	{
+		// Calculate z and y
+		Vector2 lhx, rhx;
+		camera.projectLine<false>(lhx, position, direction);
+		camera.projectLine<true>(rhx, position, direction);
+		Vector4 z(left.fa, left.fb, right.fa, right.fb);
+		Vector4 hx; hx << lhx, rhx;
+		Vector4 y = z - hx;
+
+		// Calculate H
+		Matrix<real, 2, 4> LH, RH;
+		camera.projectLineDiff<false>(LH, position, direction);
+		camera.projectLineDiff<true>(RH, position, direction);
+		Matrix4 H;
+		H.block<2, 4>(0, 0) = LH;
+		H.block<2, 4>(2, 0) = RH;
+
+		// Correct
+		auto S = H * P * H.transpose();
+		S.block<2, 2>(0, 0) += R;
+		S.block<2, 2>(2, 2) += R;
+		auto K = P * H.transpose() * S.inverse();
+		auto dx = K * y;
+		position += dx.block<2, 1>(0, 0);
+		direction += dx.block<2, 1>(2, 0);
+		P = (Matrix4::Identity() - K * H) * P;
 	}
 };

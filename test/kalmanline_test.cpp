@@ -5,6 +5,8 @@
 
 #include "gtest_utils.h"
 #include "../kalmanline.h"
+#include "../cameramodel.h"
+
 
 TEST(KalmanLineTest, predict)
 {
@@ -50,4 +52,20 @@ TEST(KalmanLineTest, getF)
 	//std::cout << "testF:" << std::endl << testF << std::endl;
 	//std::cout << "approxF:" << std::endl << approxF << std::endl;
 	EXPECT_TRUE(MatrixMatch(approxF, testF, 1E-5));
+}
+
+TEST(KalmanLineTest, correct)
+{
+	CameraModel<double> cm;
+	cm.setParams(0.1, 500, 640, 500, 360, 500, 640, 500, 360);
+
+	KalmanLine<double> kl1(Vector2d(2.75, 5), Vector2d(0.5, 0.0), 0);
+	Quaterniond r; r = Quaterniond::FromTwoVectors(Vector3d(0.5, 1, 0), Vector3d(0, 1, 0));
+	Vector3d t(2, -1.5, 3);
+	auto rm = r.inverse().toRotationMatrix();
+	LineV leftLine, rightLine;
+	Matrix2d R = Matrix2d::Identity() * 0.1;
+	kl1.correct<false>(cm, leftLine, R);
+	kl1.correct<true>(cm, rightLine, R);
+
 }

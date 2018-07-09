@@ -52,7 +52,7 @@ public:
 		v = irm * (v - t);
 	}
 	template<bool right>
-	void projectLine(Vector2 &line, const Vector2 &position, const Vector2 &direction)
+	void projectLine(Vector2 &line, const Vector2 &position, const Vector2 &direction) const
 	{
 		real b = right ?
 			(position[0] - baseline) / position[1] * rfx + rcx :
@@ -66,7 +66,7 @@ public:
 		line << (xd - b) / yd, b;
 	}
 	template<bool right>
-	void projectLineDiff(Matrix<real, 2, 4> &H, const Vector2 &position, const Vector2 &direction)
+	void projectLineDiff(Matrix<real, 2, 4> &H, const Vector2 &position, const Vector2 &direction) const
 	{
 		const real x = position[0] - (right ? baseline : 0);
 		// db / dx
