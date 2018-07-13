@@ -12,7 +12,7 @@ int main()
         cl::Platform::get(&platforms);
         cl::Platform &platform = platforms[0];
         vector<cl::Device> devices;
-        platform.getDevices(CL_DEVICE_TYPE_DEFAULT, &devices);
+        platform.getDevices(CL_DEVICE_TYPE_ALL, &devices);
         for (auto &device : devices) {
             cout << "Testing device " << device.getInfo<CL_DEVICE_NAME>() << ":" << endl;
             cl::Context ctx(device);

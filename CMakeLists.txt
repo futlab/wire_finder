@@ -11,7 +11,9 @@ find_package(OpenCV REQUIRED)
 find_package(ZED 2 REQUIRED)
 find_package(CUDA ${ZED_CUDA_VERSION} EXACT REQUIRED)
 
-find_package(Eigen3 REQUIRED)
+if(NOT DEFINED ${Eigen3_INCLUDE_DIRS})
+    find_package(Eigen3 REQUIRED)
+endif()
 
 include_directories(
 	${OpenCL_INCLUDE_DIRS}
@@ -27,7 +29,7 @@ add_executable(${PROJECT_NAME}
     main.cpp		defs.h
     hough.cpp           hough.h
     cmplines.cpp	cmplines.h
-    #linepool.cpp        
+    linepool.cpp
 	linepool.h
 	cameramodel.h
     hough_test.cpp
@@ -40,7 +42,6 @@ target_link_libraries(${PROJECT_NAME}
     ${OpenCL_LIBRARY}
     ${OpenCV_LIBS}
     ${ZED_LIBRARIES}
-	Eigen3::Eigen
 )
 
 add_executable(info
