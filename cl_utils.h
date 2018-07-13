@@ -55,7 +55,7 @@ namespace cl
 	public:
 		inline const cv::Size &size() const { return size_; }
 		inline int type() const { return type_; }
-		inline bool empty() const { return size_.empty(); }
+        inline bool empty() const { return !size_.width && !size_.height; }
 		MatBuffer() : type_(0), set_(nullptr) {}
 		MatBuffer(const MatBuffer &source);
 		MatBuffer(Set *set, cv::Size size, int type = CV_8U, cl_mem_flags flags = CL_MEM_READ_WRITE);

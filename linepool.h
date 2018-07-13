@@ -8,6 +8,8 @@
 #include <Eigen/Core>
 
 #include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
 
 #include "defs.h"
 #include "cameramodel.h"
@@ -64,7 +66,7 @@ public:
 	{
 
 	}
-	void LinePool::show(float leftHFov, float rightHFov, const KalmanLine<real> *best /*, const std::pair<int, int> selection*/)
+    void show(float leftHFov, float rightHFov, const KalmanLine<real> *best /*, const std::pair<int, int> selection*/)
 	{
 		float maxZ = 20;
 		float minX = -1, maxX = 1;

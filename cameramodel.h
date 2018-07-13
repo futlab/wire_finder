@@ -73,7 +73,7 @@ public:
 		// db / dx
 		H(1, 0) = (right ? rfx : lfx) / position[1];
 		H(1, 1) = -(right ? rfx : lfx) * x / (position[1] * position[1]);
-		H.block<1, 2>(1, 2) = Matrix<real, 1, 2>::Zero();
+        H.template block<1, 2>(1, 2) = Matrix<real, 1, 2>::Zero();
 		// da / dx
 		const auto e = position + direction;
 		const real ff = (right ? rfx_fy : lfx_fy);

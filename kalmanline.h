@@ -39,7 +39,7 @@ struct KalmanLine
 	}
 	KalmanLine(const Vector2 &position, const Vector2 &direction, real disp = 0) : position(position), direction(direction), P(Matrix4::Identity() * disp) {}
 	KalmanLine(const Vector4 &x, real disp = 0) : P(Matrix4::Identity() * disp) { setX(x); }
-	inline void setX(const Vector4 &x) { position = x.block<2, 1>(0, 0); direction = x.block<2, 1>(2, 0); }
+    inline void setX(const Vector4 &x) { position = x.template block<2, 1>(0, 0); direction = x.template block<2, 1>(2, 0); }
 	inline Vector4 getX() const { Vector4 r; r << position, direction; return r; }
 	inline void getF(Matrix4 &F, const Matrix<real, 3, 3> &irm, const Vector3 &p, const Vector3 &d) const
 	{
@@ -48,7 +48,7 @@ struct KalmanLine
 		const Vector2 d2(d[0], d[2]);
 		const real d1 = d[1];
 		// d pos / d pos
-		F.block<2, 2>(0, 0) = irm2 - direction * irv;
+        F.template block<2, 2>(0, 0) = irm2 - direction * irv;
 		/*
 		F(0, 0) = irm(0, 0) - irm(1, 0) * direction[0];
 		F(0, 1) = irm(0, 2) - irm(1, 2) * direction[0];
@@ -56,7 +56,7 @@ struct KalmanLine
 		F(1, 1) = irm(2, 2) - irm(1, 2) * direction[1];*/
 
 		// d dir / d dir
-		F.block<2, 2>(2, 2) = (irm2 * d1 - d2 * irv) / (d1 * d1);
+        F.template block<2, 2>(2, 2) = (irm2 * d1 - d2 * irv) / (d1 * d1);
 		/*
 		F(2, 2) = (irm(0, 0) * d(1) - irm(1, 0) * d(0)) / (d[1] * d[1]);
 		F(2, 3) = (irm(0, 2) * d(1) - irm(1, 2) * d(0)) / (d[1] * d[1]);
@@ -64,13 +64,13 @@ struct KalmanLine
 		F(3, 3) = (irm(2, 2) * d(1) - irm(1, 2) * d(2)) / (d[1] * d[1]);*/
 
 		// d pos / d dir
-		F.block<2, 2>(0, 2) = -p[1] * F.block<2, 2>(2, 2);
+        F.template block<2, 2>(0, 2) = -p[1] * F.template block<2, 2>(2, 2);
 		/*
 		F(0, 2) = p[1] * (irm(1, 0) * d[0] - irm(0, 0) * d[1]) / (d[1] * d[1]);
 		F(1, 2) = p[1] * (irm(1, 0) * d[2] - irm(2, 0) * d[1]) / (d[1] * d[1]);*/
 
 		// d dir / d pos
-		F.block<2, 2>(2, 0) = Matrix2::Zero();
+        F.template block<2, 2>(2, 0) = Matrix2::Zero();
 	}
 	void predict(const Matrix<real, 3, 3> &invertedRotation, const Matrix<real, 3, 1> &translation, real posQ = 0.1, real dirQ = 0.1)
 	{
@@ -91,74 +91,53 @@ struct KalmanLine
 		P(2, 2) += dirQ;
 		P(3, 3) += dirQ;
 	}
-	void correct(const CameraModel<real> &camera, const LineV &left, const LineV &right, unsigned int value)
-	{
-		Vector2 pos;
-		// Calculate position
-		float leftX = left.b + (real)left.a / 32768.0f * camera.leftCenterY();
-		float rightX = right.b + (real)right.a / 32768.0f * camera.rightCenterY();
-		camera.pointByScreen(pos, leftX, rightX);
-
-		Vector3 dir;
-		// Calculate direction
-		camera.pointByScreen(dir, left.b, right.b, 0);
-		dir[0] -= pos[0];
-		dir[2] -= pos[1];
-		dir.normalize();
-
-
-		Vector5 x, z; 
-		x << position, direction;
-		z << pos, dir;
-
-	}
 	template<bool right>
 	void correct(const CameraModel<real> &camera, const LineV &line, const Matrix2 &R)
 	{
 		// Calculate z and y
 		Vector2 z(line.fa, line.fb), hx;
-		camera.projectLine<right>(hx, position, direction);
+        camera.template projectLine<right>(hx, position, direction);
 		Vector2 y = z - hx;
 
 		// Calculate H
 		Matrix<real, 2, 4> H;
-		camera.projectLineDiff<right>(H, position, direction);
+        camera.template projectLineDiff<right>(H, position, direction);
 
 
 		// Correct
 		auto S = H * P * H.transpose() + R;
 		auto K = P * H.transpose() * S.inverse();
 		auto dx = K * y;
-		position += dx.block<2, 1>(0, 0);
-		direction += dx.block<2, 1>(2, 0);
+        position += dx.template block<2, 1>(0, 0);
+        direction += dx.template block<2, 1>(2, 0);
 		P = (Matrix4::Identity() - K * H) * P;
 	}
 	void correct(const CameraModel<real> &camera, const LineV &left, const LineV &right, const Matrix2 &R)
 	{
 		// Calculate z and y
 		Vector2 lhx, rhx;
-		camera.projectLine<false>(lhx, position, direction);
-		camera.projectLine<true>(rhx, position, direction);
+        camera.template projectLine<false>(lhx, position, direction);
+        camera.template projectLine<true>(rhx, position, direction);
 		Vector4 z(left.fa, left.fb, right.fa, right.fb);
 		Vector4 hx; hx << lhx, rhx;
 		Vector4 y = z - hx;
 
 		// Calculate H
 		Matrix<real, 2, 4> LH, RH;
-		camera.projectLineDiff<false>(LH, position, direction);
-		camera.projectLineDiff<true>(RH, position, direction);
+        camera.template projectLineDiff<false>(LH, position, direction);
+        camera.template projectLineDiff<true>(RH, position, direction);
 		Matrix4 H;
-		H.block<2, 4>(0, 0) = LH;
-		H.block<2, 4>(2, 0) = RH;
+        H.template block<2, 4>(0, 0) = LH;
+        H.template block<2, 4>(2, 0) = RH;
 
 		// Correct
 		Matrix4 S = H * P * H.transpose();
-		S.block<2, 2>(0, 0) += R;
-		S.block<2, 2>(2, 2) += R;
+        S.template block<2, 2>(0, 0) += R;
+        S.template block<2, 2>(2, 2) += R;
 		auto K = P * H.transpose() * S.inverse();
 		auto dx = K * y;
-		position += dx.block<2, 1>(0, 0);
-		direction += dx.block<2, 1>(2, 0);
+        position += dx.template block<2, 1>(0, 0);
+        direction += dx.template block<2, 1>(2, 0);
 		P = (Matrix4::Identity() - K * H) * P;
 	}
 };
