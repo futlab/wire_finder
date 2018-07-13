@@ -15,14 +15,17 @@ namespace cl
 
 	struct Set
 	{
-	   cl::Context context;
-	   cl::CommandQueue queue;
-	   std::vector<cl::Device> devices;
-	   Set() {}
-	   Set(cl_context context, cl_command_queue queue, std::vector<cl_device_id> devices);
-	   size_t getLocalSize();
-	   void initializeDefault(const std::string &preferPlatform = "", const std::string &preferDevice = "");
-	   Program buildProgram(const std::string &source, const std::string & defines = "");
+        cl::Context context;
+        cl::CommandQueue queue;
+        std::vector<cl::Device> devices;
+        Set() {}
+        Set(cl_context context, cl_command_queue queue, std::vector<cl_device_id> devices);
+        Set(Device device, cl_command_queue_properties queueProps = 0);
+        size_t getLocalSize();
+        void initializeDefault(const std::string &preferPlatform = "", const std::string &preferDevice = "");
+        static std::vector<Platform> getPlatforms();
+        static std::vector<Device> getDevices(Platform platform, cl_device_type type = CL_DEVICE_TYPE_ALL);
+        Program buildProgram(const std::string &source, const std::string & defines = "");
 	};
 
 	class Counter

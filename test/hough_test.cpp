@@ -1,46 +1,21 @@
-/*#define get_group_id(n) (groupId[n])
-#define get_local_id(n) (localId[n])
-#define get_local_size(n) 1
-#define get_num_groups(n) (numGroups[n])
-#define __kernel
-#define __global
-#define __local
-#define __private
-#define mad24(a, b, c) ((a) * (b) + (c))
-#define add_sat(a, b) ((a) + (b))
-#define barrier(n) (0)
-#define ACC_TYPE uchar
-#define GS 1
-typedef unsigned char uchar;
-typedef unsigned int uint;
-typedef unsigned short ushort;
-
-uint groupId[] = { 0, 2 };
-uint localId[] = { 0 };
-uint numGroups[] = {2, 3};
-
-#define WX wx_
-#define WY wy_
-#define ACC_H accH_
-uint wx_, wy_, accH_ = 128;*/
+#include <map>
+#include <iostream>
+#include <gtest/gtest.h>
+#include "gtest_utils.h"
 
 #include <assert.h>
-#include <iostream>
 #include <math.h>
-//#include "hough.cl"
-//#define TESTING
-#include <map>
-#include "hough.h"
+#include "../hough.h"
 #include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-#include "cl_utils.h"
-
-#define SHOW_RES
+#include "../cl_utils.h"
 
 using namespace cl;
 
-#ifdef SHOW_RES
+class HoughTest : public testing::TestWithParam<cl::Set *> {};
+
+#ifdef WITH_GUI
+#include <opencv2/highgui.hpp>
 void showScaled(const cv::String &name, const cv::Mat src)
 {
 	double min, max;
@@ -199,8 +174,10 @@ bool testScanOneRow(Set *set)
 	return !result;
 }
 
-bool testScan(Set *set)
+TEST_P(HoughTest, testScan)
 {
+    Set *set = GetParam();
+
 	HoughLinesV hlv(set);
 
 	uint w = 640, h = 180;
@@ -229,32 +206,31 @@ bool testScan(Set *set)
 		accs.push_back(a);
 	}
 
-	for (int it = 0; it < 4; it++) {
+    for (int it = 0; it < 2; it++) {
 		hlv.accumulateRows(src, accsCL);
 		hlv.sumAccumulator();
 		hlv.accumulator.read(accCL);
 
-		cv::Mat cmpRows;
-		//int tt = accsCL.type(), tt1 = accs.type();
-		cv::compare(accs, accsCL, cmpRows, cv::CMP_NE);
-		int resultRows = cv::countNonZero(cmpRows);
-		std::cout << "Hough test scan rows: " << (resultRows ? std::to_string(resultRows) + " errors" : "Ok") << std::endl;
+        cv::Mat rowsCompare, fullCompare;
+        cv::compare(accs, accsCL, rowsCompare, cv::CMP_NE);
+        int rowsNotEqual = cv::countNonZero(rowsCompare);
+        EXPECT_EQ(rowsNotEqual, 0);
 
-		cv::Mat cmpFull;
-		cv::compare(acc, accCL, cmpFull, cv::CMP_NE);
-		int resultFull = cv::countNonZero(cmpFull);
-		std::cout << "Hough test scan full: " << (resultFull ? std::to_string(resultFull) + " errors" : "Ok") << std::endl;
+        cv::compare(acc, accCL, fullCompare, cv::CMP_NE);
+        int fullNotEqual = cv::countNonZero(fullCompare);
+        EXPECT_EQ(fullNotEqual, 0);
 
 		std::vector<LineV> lines, linesCL;
-		int resultLines = 0;
-		if (!resultFull && !resultRows) {
+        int linesNotEqual = 0;
+        if (!fullNotEqual && !rowsNotEqual) {
 			hlv.collectLinesRef<ushort, 4>(accRect, 20, lines, h);
 
 			hlv.collectLines(accCL);
 			hlv.readLines(linesCL);
 
-			resultLines = compareLines(lines, linesCL);
-			std::cout << "Compare lines: " << (resultLines ? std::to_string(resultLines) + " errors" : "Ok") << std::endl;
+            linesNotEqual = compareLines(lines, linesCL);
+            EXPECT_EQ(linesNotEqual, 0);
+            //std::cout << "Compare lines: " << (linesNotEqual ? std::to_string(linesNotEqual) + " errors" : "Ok") << std::endl;
 		}
 
 #ifdef SHOW_RES
@@ -271,8 +247,10 @@ bool testScan(Set *set)
 		cv::waitKey();
 #endif
 	}
-	return 0;
 }
+
+INSTANTIATE_TEST_CASE_P(Devices, HoughTest, ::testing::ValuesIn(CLEnvironment::getSets()), clDeviceName());
+
 
 void calcStats(const cv::Mat &src, double &sx, double &sx2, double &sy, double &sxy, size_t &n)
 {
@@ -319,7 +297,7 @@ void testRefine(Set *set)
 void houghTest(Set *set)
 {
 	testRefine(set);
-    testScan(set);
+    //testScan(set);
 
 	cv::Mat src = cv::Mat::zeros(cv::Size(1280, 720), CV_8U);
 	cv::line(src, cv::Point(200, 60), cv::Point(300, 700), cv::Scalar(1));
@@ -333,7 +311,8 @@ void houghTest(Set *set)
 
     hlv.find(src, accs);
 
-	double min, max;
+#ifdef SHOW_RES
+    double min, max;
 	cv::minMaxLoc(accs, &min, &max);
 	accs.convertTo(accs, CV_8U, 255 / max);
 	cv::minMaxLoc(src, &min, &max);
@@ -341,6 +320,5 @@ void houghTest(Set *set)
 	cv::imshow("hough", accs);
 	cv::imshow("src", src);
 	cv::waitKey();
+#endif
 }
-
-

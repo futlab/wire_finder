@@ -9,8 +9,13 @@ namespace cl
 		context(context), queue(queue)
 	{
 		for (auto &d : devices)
-			this->devices.emplace_back(d);
-	}
+            this->devices.emplace_back(d);
+    }
+
+    Set::Set(Device device, cl_command_queue_properties queueProps) :
+        context(Context(device)), queue(CommandQueue(context, queueProps)), devices{device}
+    {
+    }
 
 	size_t Set::getLocalSize()
 	{
@@ -41,14 +46,28 @@ namespace cl
 		context = cl::Context(devices);// clCreateContext(NULL, 1, &deviceId_, NULL, NULL, &ret);
 
 		/* создаем очередь команд */
-		queue = cl::CommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE);// clCreateCommandQueue(context_, deviceId_, 0, &ret);
-	}
+        queue = cl::CommandQueue(context, devices[0], CL_QUEUE_PROFILING_ENABLE);// clCreateCommandQueue(context_, deviceId_, 0, &ret);
+    }
 
-	Program Set::buildProgram(const std::string & fileName, const std::string & defines)
-	{
-		using namespace std;
-		ifstream stream(fileName, ios_base::in);
-		string source((istreambuf_iterator<char>(stream)),
+    std::vector<Platform> Set::getPlatforms()
+    {
+        std::vector<cl::Platform> platforms;
+        cl::Platform::get(&platforms);
+        return platforms;
+    }
+
+    std::vector<Device> Set::getDevices(Platform platform, cl_device_type type)
+    {
+        vector<cl::Device> devices;
+        platform.getDevices(type, &devices);
+        return devices;
+    }
+
+    Program Set::buildProgram(const std::string & fileName, const std::string & defines)
+    {
+        using namespace std;
+        ifstream stream(fileName, ios_base::in);
+        string source((istreambuf_iterator<char>(stream)),
 			(std::istreambuf_iterator<char>()));
 
 		cl::Program program(context, defines + source);
@@ -69,7 +88,7 @@ namespace cl
 			}
 			throw;
 		}
-		std::cout << "Built " << fileName << " with defines:" << std::endl << defines;
+        // std::cout << "Built " << fileName << " with defines:" << std::endl << defines;
 
 		return program;
 	}

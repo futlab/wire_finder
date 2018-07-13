@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include "gtest_utils.h"
 #include "../hough.h"
 
 inline int angle2tg(float a) { return int(32768.f * tanf(a)); }
@@ -24,9 +25,28 @@ void tgSumTest()
 
 void testLinepool();
 
+std::forward_list<cl::Set> CLEnvironment::sets;
+bool CLEnvironment::initialized = false;
+
+std::vector<cl::Set *> CLEnvironment::getSets()
+{
+    if (!initialized) {
+        for (auto platform : cl::Set::getPlatforms())
+            for (auto device : cl::Set::getDevices(platform))
+                sets.emplace_front(device, CL_QUEUE_PROFILING_ENABLE);
+        initialized = true;
+    }
+    std::vector<cl::Set *> result;
+    for (auto &s : sets)
+        result.push_back(&s);
+    return result;
+}
+
 int main(int argc, char** argv)
 {
 	::testing::InitGoogleTest(&argc, argv);
+    ::testing::AddGlobalTestEnvironment(new CLEnvironment);
+
 	int result = RUN_ALL_TESTS();
 	std::cin.get();
 	return result;
