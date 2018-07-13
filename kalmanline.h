@@ -20,7 +20,7 @@ struct KalmanLine
 	Vector2 direction;
 	Matrix4 P;
 
-	KalmanLine(const CameraModel<real> &camera, const LineV & left, const LineV & right, unsigned int value)
+	KalmanLine(const CameraModel<real> &camera, const LineV & left, const LineV & right, real posP, real dirP)
 	{
 		// Calculate position
 		float leftX = left.b + (real)left.a / 32768.0f * camera.leftCenterY();
@@ -33,6 +33,9 @@ struct KalmanLine
 		d[0] -= position[0];
 		d[2] -= position[1];
 		direction << d[0] / d[1], d[2] / d[1];
+		P = Matrix4::Identity();
+		P.block<2, 2>(0, 0) *= posP;
+		P.block<2, 2>(2, 2) *= dirP;
 	}
 	KalmanLine(const Vector2 &position, const Vector2 &direction, real disp = 0) : position(position), direction(direction), P(Matrix4::Identity() * disp) {}
 	KalmanLine(const Vector4 &x, real disp = 0) : P(Matrix4::Identity() * disp) { setX(x); }
@@ -69,7 +72,7 @@ struct KalmanLine
 		// d dir / d pos
 		F.block<2, 2>(2, 0) = Matrix2::Zero();
 	}
-	void predict(const Matrix<real, 3, 3> &invertedRotation, const Matrix<real, 3, 1> &translation)
+	void predict(const Matrix<real, 3, 3> &invertedRotation, const Matrix<real, 3, 1> &translation, real posQ = 0.1, real dirQ = 0.1)
 	{
 		Vector3 p(position[0], 0, position[1]);
 		p = invertedRotation * (p - translation);
@@ -83,7 +86,10 @@ struct KalmanLine
 		Matrix4 F;
 		getF(F, invertedRotation, p, d);
 		P = F * P * F.transpose();
-		// P += Q;
+		P(0, 0) += posQ;
+		P(1, 1) += posQ;
+		P(2, 2) += dirQ;
+		P(3, 3) += dirQ;
 	}
 	void correct(const CameraModel<real> &camera, const LineV &left, const LineV &right, unsigned int value)
 	{
@@ -146,7 +152,7 @@ struct KalmanLine
 		H.block<2, 4>(2, 0) = RH;
 
 		// Correct
-		auto S = H * P * H.transpose();
+		Matrix4 S = H * P * H.transpose();
 		S.block<2, 2>(0, 0) += R;
 		S.block<2, 2>(2, 2) += R;
 		auto K = P * H.transpose() * S.inverse();

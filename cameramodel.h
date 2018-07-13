@@ -11,8 +11,9 @@ private:
 	real baseline, lfx, lcx, lfy, lcy, rfx, rcx, rfy, rcy;
 	real lfx_fy, rfx_fy;
 public:
-	inline real leftCenterY() { return lcy; }
-	inline real rightCenterY() { return rcy; }
+	inline real leftCenterY() const { return lcy; }
+	inline real rightCenterY() const { return rcy; }
+	inline real getBaseline() const { return baseline; }
 	typedef Matrix<real, 3, 1> Vector3;
 	typedef Matrix<real, 2, 1> Vector2;
 	void pointByScreen(Vector2 &result, real lx, real rx) const
@@ -46,7 +47,7 @@ public:
 		lfx_fy = lfx / lfy;
 		rfx_fy = rfx / rfy;
 	}
-	void predict(const Quaternion<real> &r, const Vector3 &t, Vector3 &v)
+	void predict(const Quaternion<real> &r, const Vector3 &t, Vector3 &v) const
 	{
 		auto irm = r.inverse().toRotationMatrix();
 		v = irm * (v - t);
@@ -82,7 +83,7 @@ public:
 		H(0, 3) = -ff * x / position[1];
 	}
 	template<bool right>
-	inline void projectLine(real &a, real &b, const Vector2 &position, const Vector2 &direction) 
+	inline void projectLine(real &a, real &b, const Vector2 &position, const Vector2 &direction) const
 	{ 
 		Vector2 line; 
 		projectLine<right>(line, position, direction);
@@ -90,7 +91,7 @@ public:
 		b = line[1];
 	}
 	template<bool right>
-	void projectPoint(Vector2 &out, const Vector3 &point)
+	void projectPoint(Vector2 &out, const Vector3 &point) const
 	{
 		if (right) out <<
 			rcx + (point[0] - baseline) / point[2] * rfx,

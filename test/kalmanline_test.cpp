@@ -67,5 +67,5 @@ TEST(KalmanLineTest, correct)
 	Matrix2d R = Matrix2d::Identity() * 0.1;
 	kl1.correct<false>(cm, leftLine, R);
 	kl1.correct<true>(cm, rightLine, R);
-
+	kl1.correct(cm, leftLine, rightLine, R);
 }

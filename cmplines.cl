@@ -32,6 +32,7 @@ typedef struct __attribute__((packed)) _Line
 {
 	ushort value, width;
 	short a, b; // x = ((a * y) >> 16) + b;
+	float fa, fb;
 } Line;
 
 void load(local uchar4 *buf, global uchar4 *source, int a, int b)
