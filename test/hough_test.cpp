@@ -249,7 +249,7 @@ TEST_P(HoughTest, testScan)
 	}
 }
 
-INSTANTIATE_TEST_CASE_P(Devices, HoughTest, ::testing::ValuesIn(CLEnvironment::getSets()), clDeviceName());
+INSTANTIATE_TEST_CASE_P(OpenCL, HoughTest, ::testing::ValuesIn(CLEnvironment::getSets()), clDeviceName());
 
 
 void calcStats(const cv::Mat &src, double &sx, double &sx2, double &sy, double &sxy, size_t &n)

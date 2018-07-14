@@ -33,7 +33,10 @@ struct clDeviceName
     {
         //auto location = static_cast<Location>(info.param);
         std::string s = info.param->devices[0].getInfo<CL_DEVICE_NAME>();
-        std::replace(s.begin(), s.end(), ' ', '_');
-        return s;//
+		s.erase(std::remove_if(s.begin(), s.end(), [](char c) { return c == '(' || c == ')' || c == '@'; }), s.end());
+		std::replace(s.begin(), s.end(), ' ', '_');
+		std::replace(s.begin(), s.end(), '.', '_');
+		std::replace(s.begin(), s.end(), '-', '_');
+		return s;//
     }
 };
