@@ -12,7 +12,15 @@
 
 using namespace cl;
 
-class HoughTest : public testing::TestWithParam<cl::Set *> {};
+class HoughTest : public testing::TestWithParam<cl::Set *>
+{
+protected:
+    Set *set;
+    void SetUp()
+    {
+        set = GetParam();
+    }
+};
 
 #ifdef WITH_GUI
 #include <opencv2/highgui.hpp>
@@ -79,15 +87,15 @@ int compareLines(const std::vector<LineV> &va, const std::vector<LineV> &vb)
 	return res;
 }
 
-bool testScanOneGroup(Set *set)
+TEST_P(HoughTest, accumulateOneGroup)
 {
-    uint w = 160, h = 45;
+    uint w = 64, h = 45;
     cv::Size size(w, h);
     cv::Mat src = cv::Mat::zeros(size, CV_8U);
     src.data[2 + w * 15] = 1;
     cv::line(src, cv::Point(50, 1), cv::Point(55, 37), cv::Scalar(1));
-    cv::line(src, cv::Point(100, 21), cv::Point(90, 39), cv::Scalar(1));
-	cv::line(src, cv::Point(103, 21), cv::Point(88, 39), cv::Scalar(1));
+    cv::line(src, cv::Point(40, 21), cv::Point(30, 39), cv::Scalar(1));
+    cv::line(src, cv::Point(43, 21), cv::Point(28, 39), cv::Scalar(1));
 	cv::line(src, cv::Point(3, 5), cv::Point(15, 10), cv::Scalar(1));
 
     HoughLinesV hlv(set);
@@ -104,16 +112,8 @@ bool testScanOneGroup(Set *set)
     cv::Mat cmp;
     cv::compare(accs, accsCL, cmp, cv::CMP_NE);
     int result = cv::countNonZero(cmp);
-
-	std::cout << "Hough test scan one group: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
-
-	std::vector<LineV> lines, linesCL;
-	hlv.collectLinesRef<ushort>(accs, 20, lines, h);
-	hlv.collectLines(accsCL);
-	hlv.readLines(linesCL);
-
-	result = compareLines(lines, linesCL);
-	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+    int accumulatorNotEqual = cv::countNonZero(cmp);
+    EXPECT_EQ(accumulatorNotEqual, 0);
 
 #ifdef SHOW_RES
     showScaled("src", src);
@@ -123,7 +123,6 @@ bool testScanOneGroup(Set *set)
         cv::imshow("result", cmp);
     cv::waitKey();
 #endif
-    return !result;
 }
 
 bool testScanOneRow(Set *set)

@@ -217,7 +217,8 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__g
 
 __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ROW_TYPE *dst, __global volatile uint *flags)
 {
-	// Accumulate to local memory
+    local uint result;
+    // Accumulate to local memory
 	__local ROW_TYPE acc[ACC_H * ACC_W];
 	accumulateLocal(src, step, acc);
 
@@ -231,7 +232,6 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows
     uchar works = 7, canWrite = 2, flagSet = 0; // 1: left, 2: center, 4: right
     if (get_group_id(0) == 0                    ) canWrite |= 1;
     else {
-        local uint result;
         if (!get_local_id(0))
             result = !atomic_cmpxchg(leftFlag, 0, 1);
         barrier(CLK_LOCAL_MEM_FENCE);
@@ -239,7 +239,6 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows
     }
     if (get_group_id(0) == get_num_groups(0) - 1) canWrite |= 4;
     else {
-        local uint result;
         if (!get_local_id(0))
             result = !atomic_cmpxchg(rightFlag, 0, 1);
         barrier(CLK_LOCAL_MEM_FENCE);
