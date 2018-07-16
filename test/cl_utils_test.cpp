@@ -53,5 +53,20 @@ TEST_P(CLUtilsTest, bufferTFill)
     EXPECT_TRUE(vectorMatch(output, (uint) 0));
 }
 
+TEST_P(CLUtilsTest, atomicCmpXchg)
+{
+    BufferT<uint> buf(set, 1);
+    buf.fill();
+    string source = "__kernel void inc(__global volatile uint *flag) { \
+            while( atomic_cmpxchg(flag, get_global_id(0), get_global_id(0) + 1) != get_global_id(0)); \
+            }\n";
+    auto p = set->buildProgramFromSource(source);
+    Kernel kernel(p, "inc");
+    kernel.setArg(0, buf);
+    set->queue.enqueueNDRangeKernel(kernel, NDRange(), NDRange(64));
+    buf.read(output);
+    EXPECT_EQ(output.size(), 1);
+    EXPECT_EQ(output[0], 64);
+}
 
 INSTANTIATE_TEST_CASE_P(OpenCL, CLUtilsTest, ::testing::ValuesIn(CLEnvironment::getSets()), clDeviceName());
