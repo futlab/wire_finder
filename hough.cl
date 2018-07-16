@@ -215,16 +215,21 @@ __kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulate(__g
 	return result;
 }*/
 
-void glueLocalAccRows(__local ROW_TYPE *acc, __global ROW_TYPE *dst, __global volatile uint *flags)
+__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ROW_TYPE *dst, __global volatile uint *flags)
 {
-	uint flag_id = mad24((uint)get_group_id(1), (uint)get_num_groups(0) - 1, (uint)get_group_id(0));
-	uint rowWidth = mad24((uint)get_num_groups(0), (uint)WX, (uint)(ACC_W - WX));
-	dst += mad24(rowWidth, ACC_H * (uint)get_group_id(1), (uint)get_group_id(0) * WX);
+	// Accumulate to local memory
+	__local ROW_TYPE acc[ACC_H * ACC_W];
+	accumulateLocal(src, step, acc);
 
-	__global volatile uint *leftFlag = flags + flag_id - 1, *rightFlag = flags + flag_id;
+	// Make full rows of accumulator
+    uint flag_id = mad24((uint)get_group_id(1), (uint)get_num_groups(0) - 1, (uint)get_group_id(0));
+    uint rowWidth = mad24((uint)get_num_groups(0), (uint)WX, (uint)(ACC_W - WX));
+    dst += mad24(rowWidth, ACC_H * (uint)get_group_id(1), (uint)get_group_id(0) * WX);
 
-	uchar works = 7, canWrite = 2, flagSet = 0; // 1: left, 2: center, 4: right
-	if (get_group_id(0) == 0                    ) canWrite |= 1;
+    __global volatile uint *leftFlag = flags + flag_id - 1, *rightFlag = flags + flag_id;
+
+    uchar works = 7, canWrite = 2, flagSet = 0; // 1: left, 2: center, 4: right
+    if (get_group_id(0) == 0                    ) canWrite |= 1;
     else {
         local uint result;
         if (!get_local_id(0))
@@ -232,7 +237,7 @@ void glueLocalAccRows(__local ROW_TYPE *acc, __global ROW_TYPE *dst, __global vo
         barrier(CLK_LOCAL_MEM_FENCE);
         if (result)  { canWrite |= 1; flagSet |= 1; }
     }
-	if (get_group_id(0) == get_num_groups(0) - 1) canWrite |= 4;
+    if (get_group_id(0) == get_num_groups(0) - 1) canWrite |= 4;
     else {
         local uint result;
         if (!get_local_id(0))
@@ -241,65 +246,55 @@ void glueLocalAccRows(__local ROW_TYPE *acc, __global ROW_TYPE *dst, __global vo
         if (result) { canWrite |= 4; flagSet |= 4; }
     }
 
-	/*if (!get_local_id(0)) 
-		printf("Group %d (%d) - works: %d, canWrite: %d, flagSet: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet);
-	uint ctr = 0;*/
-	while (works /*&& ctr++ < 1000*/) {
-		//if (!get_local_id(0)) 
-		//	printf("Group %d (%d) - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
+    /*if (!get_local_id(0))
+        printf("Group %d (%d) - works: %d, canWrite: %d, flagSet: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet);
+    uint ctr = 0;*/
+    while (works /*&& ctr++ < 1000*/) {
+        //if (!get_local_id(0))
+        //	printf("Group %d (%d) - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
         if ((works & 1) && !(canWrite & 1) && *leftFlag == 2) { // Sum and store left
             addRect(acc, dst,
                 WX, rowWidth - (ACC_W - WX), ACC_W - WX, ACC_H);
             canWrite |= 1;
             barrier(CLK_LOCAL_MEM_FENCE);
             //if (!get_local_id(0)) printf("Group %d (%d) left add - works: %d, canWrite: %d, flagSet: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet);
-		}
+        }
         if ((works & 4) && !(canWrite & 4) && *rightFlag == 2) { // Sum and store right
             addRect(acc + WX, dst + WX,
                 WX, rowWidth - (ACC_W - WX), ACC_W - WX, ACC_H);
             canWrite |= 4;
             barrier(CLK_LOCAL_MEM_FENCE);
             //if (!get_local_id(0))	printf("Group %d (%d) right add - works: %d, canWrite: %d, flagSet: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet);
-		}
-		if (canWrite) {
-			uint a = WX, b = ACC_W - WX;
-			if (canWrite & 2) { a = ACC_W - WX; b = WX; }
-			if (canWrite & 1) a = 0;
-			if (canWrite & 4) b = ACC_W;
+        }
+        if (canWrite) {
+            uint a = WX, b = ACC_W - WX;
+            if (canWrite & 2) { a = ACC_W - WX; b = WX; }
+            if (canWrite & 1) a = 0;
+            if (canWrite & 4) b = ACC_W;
 
-			uint w = b - a;
-			copyRect( // Write result to global memory
-				dst + a,				// dst
-				acc + a,				// source
-				rowWidth - w,			// dst step
-				ACC_W -	w,				// src step
-				w,						// width
-				ACC_H);					// height
+            uint w = b - a;
+            copyRect( // Write result to global memory
+                dst + a,				// dst
+                acc + a,				// source
+                rowWidth - w,			// dst step
+                ACC_W -	w,				// src step
+                w,						// width
+                ACC_H);					// height
 
-			barrier(CLK_GLOBAL_MEM_FENCE);
+            barrier(CLK_GLOBAL_MEM_FENCE);
 
-			uchar flagFin = flagSet & canWrite;
-			if (!get_local_id(0)) {
-				if (flagFin & 1) *leftFlag = 2;
-				if (flagFin & 4) *rightFlag = 2;
-			}
-			flagSet &= ~flagFin;
-			works &= ~canWrite;
-			canWrite = 0;
-			//if (!get_local_id(0)) printf("Group %d (%d) store - works: %d, canWrite: %d, flagSet: %d, a: %d, b: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, a, b);
-		}
-	}
-	// if (!get_local_id(0)) printf("Group %d (%d) exit - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
-}
-
-__kernel /*__attribute__((reqd_work_group_size(32, 1, 1)))*/ void accumulateRows(__global const uchar *src, uint step, __global ROW_TYPE *dst, __global volatile uint *flags)
-{
-	// Accumulate to local memory
-	__local ROW_TYPE acc[ACC_H * ACC_W];
-	accumulateLocal(src, step, acc);
-
-	// Make full rows of accumulator
-	glueLocalAccRows(acc, dst, flags);
+            uchar flagFin = flagSet & canWrite;
+            if (!get_local_id(0)) {
+                if (flagFin & 1) *leftFlag = 2;
+                if (flagFin & 4) *rightFlag = 2;
+            }
+            flagSet &= ~flagFin;
+            works &= ~canWrite;
+            canWrite = 0;
+            //if (!get_local_id(0)) printf("Group %d (%d) store - works: %d, canWrite: %d, flagSet: %d, a: %d, b: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, a, b);
+        }
+    }
+    // if (!get_local_id(0)) printf("Group %d (%d) exit - works: %d, canWrite: %d, flagSet: %d, ctr: %d\n", get_group_id(0), get_local_id(0), works, canWrite, flagSet, ctr);
 }
 
 void sumAngle(global const ROW_TYPE *accs, uint shiftF, uint shiftW, uint a, local ACC_TYPE *dst)
