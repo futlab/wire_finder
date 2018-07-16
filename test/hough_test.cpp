@@ -125,7 +125,7 @@ TEST_P(HoughTest, accumulateOneGroup)
 #endif
 }
 
-bool testScanOneRow(Set *set)
+TEST_P(HoughTest, accumulateOneRow)
 {
 	uint w = 640, h = 45;
 	cv::Size size(w, h);
@@ -150,17 +150,8 @@ bool testScanOneRow(Set *set)
 
 	cv::Mat cmp;
 	cv::compare(accs, accsCL, cmp, cv::CMP_NE);
-	int result = cv::countNonZero(cmp);
-
-	std::cout << "Hough test scan one row: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
-
-	std::vector<LineV> lines, linesCL;
-	/*hlv.collectLinesRef<ushort>(accs, 10, lines);
-	hlv.collectLines(accsCL);
-	hlv.readLines(linesCL);*/
-
-	result = compareLines(lines, linesCL);
-	std::cout << "Compare lines: " << (result ? std::to_string(result) + " errors" : "Ok") << std::endl;
+    int rowsNotEqual = cv::countNonZero(cmp);
+    EXPECT_EQ(rowsNotEqual, 0);
 
 #ifdef SHOW_RES
 	showScaled("src", src);
@@ -170,7 +161,6 @@ bool testScanOneRow(Set *set)
 		cv::imshow("result", cmp);
 	cv::waitKey();
 #endif
-	return !result;
 }
 
 TEST_P(HoughTest, testScan)
