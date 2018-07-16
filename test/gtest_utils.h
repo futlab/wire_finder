@@ -1,4 +1,5 @@
 #pragma once
+#include <vector>
 #include <forward_list>
 #include <memory>
 #include <gtest/gtest.h>
@@ -16,6 +17,32 @@ testing::AssertionResult MatrixMatch(const Eigen::Matrix<T, rows, cols> &expecte
 			}
 		}
 	return ::testing::AssertionSuccess();
+}
+
+template<typename T>
+testing::AssertionResult vectorMatch(const std::vector<T> &expected, const std::vector<T> &actual)
+{
+    if (expected.size() != actual.size())
+        return ::testing::AssertionFailure() << "expected.size (" << expected.size() << ") != actual.size (" << actual.size() << ")";
+    for (size_t i = 0; i < expected.size(); i++) {
+        T e = expected[i], a = actual[i];
+        if (e != a) {
+            return ::testing::AssertionFailure() << "expected[" << i << "] (" << e << ") != actual[" << i << "] (" << a << ")";
+        }
+    }
+    return ::testing::AssertionSuccess();
+}
+
+template<typename T>
+testing::AssertionResult vectorMatch(const std::vector<T> &actual, const T &expected)
+{
+    for (size_t i = 0; i < actual.size(); i++) {
+        T a = actual[i];
+        if (a != expected) {
+            return ::testing::AssertionFailure() << "expected (" << expected << ") != actual[" << i << "] (" << a << ")";
+        }
+    }
+    return ::testing::AssertionSuccess();
 }
 
 class CLEnvironment : public ::testing::Environment

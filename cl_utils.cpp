@@ -63,6 +63,33 @@ namespace cl
         return devices;
     }
 
+    Program Set::buildProgramFromSource(const std::string &source, const std::string &fileName)
+    {
+        cl::Program program(context, source);
+        try {
+            program.build(devices);
+            //string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(devices[0]);
+            //std::cerr << buildlog;
+        }
+        catch (cl::BuildError &e) {
+            for (auto &device : devices) {
+                // Check the build status
+                cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device);
+                if (status != CL_BUILD_ERROR) continue;
+
+                // Get the build log
+                string name = device.getInfo<CL_DEVICE_NAME>();
+                string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
+                std::cerr << "Build log for " << fileName << " on device " << name << ":" << std::endl
+                    << buildlog << std::endl;
+            }
+            throw;
+        }
+        // std::cout << "Built " << fileName << " with defines:" << std::endl << defines;
+
+        return program;
+    }
+
     Program Set::buildProgram(const std::string & fileName, const std::string & defines)
     {
         using namespace std;
@@ -70,27 +97,7 @@ namespace cl
         string source((istreambuf_iterator<char>(stream)),
 			(std::istreambuf_iterator<char>()));
 
-		cl::Program program(context, defines + source);
-		try {
-			program.build(devices);
-		}
-		catch (cl::BuildError &e) {
-			for (auto &device : devices) {
-				// Check the build status
-				cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(device);
-				if (status != CL_BUILD_ERROR) continue;
-
-				// Get the build log
-				string name = device.getInfo<CL_DEVICE_NAME>();
-				string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
-				std::cerr << "Build log for " << fileName << " on device " << name << ":" << std::endl
-					<< buildlog << std::endl;
-			}
-			throw;
-		}
-        // std::cout << "Built " << fileName << " with defines:" << std::endl << defines;
-
-		return program;
+        return buildProgramFromSource(defines + source, fileName);
 	}
 
 	void printCLDevices()
@@ -189,5 +196,19 @@ namespace cl
 		if (buf.size_ != this->size_ || buf.type_ != this->type_)
 			buf = MatBuffer(set_, this->size_, this->type_);
 		set_->queue.enqueueCopyBuffer(*this, buf, 0, 0, size_.area() * cvTypeSize(type_));
-	}
+    }
+
+    void FillKernel::operator()(Set *set, Buffer &buffer, size_t size)
+    {
+        if (!kernel()) {
+            string source = "__kernel void fill(__global uint *dst, uint size) { \
+                    __global uint *e = dst + size / 4; dst += get_global_id(0); \
+                    for (; dst < e; dst += get_global_size(0)) *dst = 0; }\n";
+            auto p = set->buildProgramFromSource(source);
+            kernel = Kernel(p, "fill");
+        }
+        kernel.setArg(0, buffer);
+        kernel.setArg(1, (uint) size);
+        set->queue.enqueueNDRangeKernel(kernel, NDRange(), NDRange(128));
+    }
 }
